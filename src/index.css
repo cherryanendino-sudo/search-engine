@@ -390,3 +390,46 @@ details summary::marker {
 .edit-input::placeholder {
   color: var(--text-ghost);
 }
+
+/* ========== GRADESHEET TABLE ========== */
+.gs-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.gs-table-wrapper::-webkit-scrollbar {
+  height: 3px;
+}
+
+.gs-table-wrapper::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.gs-table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.gs-data-row:hover td {
+  background: var(--bg-hover) !important;
+}
+
+.gs-data-row:hover .gs-grade-cell {
+  background: var(--bg-hover) !important;
+}
+
+.gs-grade-cell {
+  transition: background 0.15s ease;
+}
+
+/* Student list row animations */
+.student-list-row {
+  will-change: transform;
+}
+
+.student-list-row .list-arrow {
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.student-list-row .list-indicator {
+  transition: transform 0.3s;
+}
