@@ -5,20 +5,103 @@
   --font-mono: 'Space Mono', monospace;
 }
 
+/* ========== THEME VARIABLES ========== */
+:root,
+[data-theme="dark"] {
+  --bg-primary: #050505;
+  --bg-secondary: #080808;
+  --bg-tertiary: #0a0a0a;
+  --bg-input: #0d0d0d;
+  --bg-hover: #0d0d0d;
+  --bg-card: #0c0c0c;
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #ccc;
+  --text-tertiary: #888;
+  --text-quaternary: #555;
+  --text-muted: #444;
+  --text-faint: #333;
+  --text-ghost: #2a2a2a;
+  --text-invisible: #222;
+
+  --border-primary: #1a1a1a;
+  --border-secondary: #222;
+  --border-tertiary: #333;
+  --border-hover: #444;
+  --border-active: #e8e8e8;
+
+  --selection-bg: #fff;
+  --selection-color: #000;
+
+  --scrollbar-track: #0a0a0a;
+  --scrollbar-thumb: #333;
+
+  --noise-opacity: 0.03;
+  --grid-opacity: 0.04;
+
+  --avatar-invert: invert(1);
+  --avatar-opacity: 0.7;
+  --avatar-row-opacity: 0.5;
+
+  --gpa-bar-bg: #1a1a1a;
+  --gpa-fill: #e8e8e8;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #fafafa;
+  --bg-input: #ffffff;
+  --bg-hover: #f0f0f0;
+  --bg-card: #f8f8f8;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #333;
+  --text-tertiary: #666;
+  --text-quaternary: #888;
+  --text-muted: #999;
+  --text-faint: #bbb;
+  --text-ghost: #ccc;
+  --text-invisible: #ddd;
+
+  --border-primary: #e0e0e0;
+  --border-secondary: #d0d0d0;
+  --border-tertiary: #bbb;
+  --border-hover: #999;
+  --border-active: #1a1a1a;
+
+  --selection-bg: #1a1a1a;
+  --selection-color: #fff;
+
+  --scrollbar-track: #f0f0f0;
+  --scrollbar-thumb: #ccc;
+
+  --noise-opacity: 0.015;
+  --grid-opacity: 0.03;
+
+  --avatar-invert: invert(0);
+  --avatar-opacity: 0.8;
+  --avatar-row-opacity: 0.6;
+
+  --gpa-bar-bg: #e0e0e0;
+  --gpa-fill: #333;
+}
+
 * {
   cursor: none !important;
 }
 
 ::selection {
-  background: #fff;
-  color: #000;
+  background: var(--selection-bg);
+  color: var(--selection-color);
 }
 
 body {
-  background: #050505;
-  color: #e8e8e8;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-family: 'Space Grotesk', sans-serif;
   overflow-x: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 ::-webkit-scrollbar {
@@ -26,11 +109,11 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--scrollbar-thumb);
 }
 
 /* Custom cursor */
@@ -66,11 +149,12 @@ body {
   border: none;
   outline: none;
   font-family: 'Space Grotesk', sans-serif;
-  caret-color: #fff;
+  caret-color: var(--text-primary);
+  color: var(--text-primary);
 }
 
 .search-input::placeholder {
-  color: #2a2a2a;
+  color: var(--text-ghost);
 }
 
 /* Noise overlay */
@@ -82,7 +166,7 @@ body {
   width: 200%;
   height: 200%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.03;
+  opacity: var(--noise-opacity);
   pointer-events: none;
   z-index: 0;
 }
@@ -96,7 +180,7 @@ body {
   height: 100%;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.04;
+  opacity: var(--grid-opacity);
 }
 
 .grid-lines::before {
@@ -107,8 +191,8 @@ body {
   width: 100%;
   height: 100%;
   background-image:
-    linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+    linear-gradient(rgba(128,128,128,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(128,128,128,0.1) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -118,7 +202,7 @@ body {
   font-size: 10px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: #555;
+  color: var(--text-quaternary);
 }
 
 /* Status dots */
@@ -141,24 +225,24 @@ body {
   left: 0;
   width: 100%;
   height: 1px;
-  background: #1a1a1a;
+  background: var(--border-primary);
 }
 
 .student-row:hover::before {
-  background: #333;
+  background: var(--border-tertiary);
 }
 
 /* GPA bar */
 .gpa-bar {
   height: 2px;
-  background: #1a1a1a;
+  background: var(--gpa-bar-bg);
   position: relative;
   overflow: hidden;
 }
 
 .gpa-fill {
   height: 100%;
-  background: #e8e8e8;
+  background: var(--gpa-fill);
   transform-origin: left;
 }
 
@@ -179,19 +263,20 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 6px 14px;
-  border: 1px solid #1a1a1a;
+  border: 1px solid var(--border-primary);
+  color: var(--text-muted);
   transition: all 0.3s ease;
 }
 
 .filter-chip:hover {
-  border-color: #444;
-  color: #fff;
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .filter-chip.active {
-  border-color: #e8e8e8;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+  background: rgba(128, 128, 128, 0.06);
 }
 
 /* Scrollbar hide utility */
@@ -210,8 +295,8 @@ select, input[type="text"] {
 }
 
 select option {
-  background: #0d0d0d;
-  color: #e8e8e8;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 /* Details summary styling */
@@ -239,7 +324,7 @@ details summary::marker {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.03) 0%, transparent 60%);
+  background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(128,128,128,0.03) 0%, transparent 60%);
   transition: opacity 0.3s;
   pointer-events: none;
 }
@@ -273,5 +358,78 @@ details summary::marker {
 /* Section divider */
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, #222, transparent);
+  background: linear-gradient(90deg, transparent, var(--border-secondary), transparent);
+}
+
+/* Theme transition helper */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
+}
+
+/* Edit form inputs */
+.edit-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s ease;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.edit-input:focus {
+  border-color: var(--border-hover);
+}
+
+.edit-input::placeholder {
+  color: var(--text-ghost);
+}
+
+/* ========== GRADESHEET TABLE ========== */
+.gs-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.gs-table-wrapper::-webkit-scrollbar {
+  height: 3px;
+}
+
+.gs-table-wrapper::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.gs-table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.gs-data-row:hover td {
+  background: var(--bg-hover) !important;
+}
+
+.gs-data-row:hover .gs-grade-cell {
+  background: var(--bg-hover) !important;
+}
+
+.gs-grade-cell {
+  transition: background 0.15s ease;
+}
+
+/* Student list row animations */
+.student-list-row {
+  will-change: transform;
+}
+
+.student-list-row .list-arrow {
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.student-list-row .list-indicator {
+  transition: transform 0.3s;
 }
