@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import gsap from 'gsap';
 import { students, type Student, getGradeLevelLabel } from '../data/students';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, type AdvisorySection } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 type MainTab = 'loads' | 'advisory';
@@ -47,16 +47,26 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [gradesheetView, setGradesheetView] = useState<'compact' | 'detailed'>('compact');
 
+  // Multiple advisory support
+  const advisories: AdvisorySection[] = user?.advisories?.length
+    ? user.advisories
+    : user?.advisorySection && user?.advisoryGradeLevel
+      ? [{ section: user.advisorySection, gradeLevel: user.advisoryGradeLevel }]
+      : [{ section: 'Diamond', gradeLevel: '10' }];
+
+  const [selectedAdvisoryIdx, setSelectedAdvisoryIdx] = useState(0);
+  const currentAdvisory = advisories[selectedAdvisoryIdx] ?? advisories[0];
+
   const listContainerRef = useRef<HTMLDivElement>(null);
   const gradesheetContainerRef = useRef<HTMLDivElement>(null);
 
-  // Get advisory section info from user
-  const advisorySection = user?.advisorySection ?? 'Diamond';
-  const advisoryGradeLevel = user?.advisoryGradeLevel ?? '10';
+  // Get advisory section info from selected advisory
+  const advisorySection = currentAdvisory.section;
+  const advisoryGradeLevel = currentAdvisory.gradeLevel;
   const isSHS = parseInt(advisoryGradeLevel) >= 11;
 
-  // Get the strand for SHS
-  const sectionStrand = isSHS ? 'ABM' : null; // Default for demo
+  // Get the strand for SHS from advisory or infer
+  const sectionStrand = currentAdvisory.strand ?? (isSHS ? 'ABM' : null);
 
   // Filter students in this advisory section
   const advisoryStudents = useMemo(() => {
@@ -114,7 +124,20 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
   const classAverage = gpas.length > 0 ? Math.round(gpas.reduce((a, b) => a + b, 0) / gpas.length) : 0;
   const highestGPA = gpas.length > 0 ? Math.max(...gpas) : 0;
   const lowestGPA = gpas.length > 0 ? Math.min(...gpas) : 0;
+  // Honor roll tiers (DepEd standard)
+  const withHighestHonors = advisoryStudents.filter(s => {
+    const gpa = getStudentGPA(s);
+    return gpa !== null && gpa >= 98;
+  });
+  const withHighHonors = advisoryStudents.filter(s => {
+    const gpa = getStudentGPA(s);
+    return gpa !== null && gpa >= 95 && gpa < 98;
+  });
   const withHonors = advisoryStudents.filter(s => {
+    const gpa = getStudentGPA(s);
+    return gpa !== null && gpa >= 90 && gpa < 95;
+  });
+  const allHonorStudents = advisoryStudents.filter(s => {
     const gpa = getStudentGPA(s);
     return gpa !== null && gpa >= 90;
   });
@@ -123,8 +146,16 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
     return gpa !== null && gpa < 75;
   });
 
-  // Honor roll sorted by GPA
-  const honorRoll = [...withHonors].sort((a, b) => (getStudentGPA(b) ?? 0) - (getStudentGPA(a) ?? 0));
+  // All honor students sorted by GPA
+  const honorRoll = [...allHonorStudents].sort((a, b) => (getStudentGPA(b) ?? 0) - (getStudentGPA(a) ?? 0));
+
+  const getHonorTier = (gpa: number | null): { label: string; color: string } | null => {
+    if (gpa === null) return null;
+    if (gpa >= 98) return { label: 'WITH HIGHEST HONORS', color: '#fbbf24' };
+    if (gpa >= 95) return { label: 'WITH HIGH HONORS', color: '#60a5fa' };
+    if (gpa >= 90) return { label: 'WITH HONORS', color: '#4ade80' };
+    return null;
+  };
 
   // Subjects for gradesheet
   const gradesheetSubjects = getSubjectsForStrand(sectionStrand);
@@ -418,12 +449,37 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
       {/* ==================== ADVISORY TAB ==================== */}
       {mainTab === 'advisory' && (
         <div>
-          {/* Advisory header */}
+          {/* Advisory selector + header */}
+          {advisories.length > 1 && (
+            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+              <span className="mono-tag flex-shrink-0" style={{ color: 'var(--text-muted)' }}>ADVISORY</span>
+              {advisories.map((adv, idx) => (
+                <button
+                  key={`${adv.section}-${adv.gradeLevel}`}
+                  onClick={() => { setSelectedAdvisoryIdx(idx); setStudentSearch(''); setSexFilter('all'); }}
+                  className="mono-tag px-3 py-1.5 border transition-all flex-shrink-0"
+                  style={{
+                    borderColor: selectedAdvisoryIdx === idx ? 'var(--border-active)' : 'var(--border-primary)',
+                    color: selectedAdvisoryIdx === idx ? 'var(--text-primary)' : 'var(--text-muted)',
+                    background: selectedAdvisoryIdx === idx ? 'rgba(128,128,128,0.08)' : 'transparent',
+                  }}
+                >
+                  G{adv.gradeLevel} - {adv.strand ? `${adv.strand} ` : ''}{adv.section}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <span className="mono-tag px-2 py-0.5 border border-[#fbbf24]/30 text-[#fbbf24]">Advisory</span>
                 <span className="mono-tag px-2 py-0.5 border" style={{ borderColor: 'var(--border-secondary)', color: 'var(--text-quaternary)' }}>S.Y. 2024-2025</span>
+                {advisories.length > 1 && (
+                  <span className="mono-tag px-2 py-0.5 border" style={{ borderColor: 'var(--border-secondary)', color: 'var(--text-faint)' }}>
+                    {selectedAdvisoryIdx + 1} of {advisories.length} sections
+                  </span>
+                )}
               </div>
               <h3 className="text-xl font-light">{sectionStrand ? `${sectionStrand} ` : ''}{advisorySection}</h3>
               <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{getGradeLevelLabel(advisoryGradeLevel as any)}</span>
@@ -476,9 +532,13 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
               </div>
             </div>
             <div className="border p-4" style={{ borderColor: 'var(--border-primary)' }}>
-              <span className="mono-tag block mb-1" style={{ color: 'var(--text-quaternary)' }}>With Honors</span>
-              <span className="text-3xl font-light text-[#4ade80]">{withHonors.length}</span>
-              <span className="mono-tag block mt-1" style={{ color: 'var(--text-faint)', fontSize: '8px' }}>{'GPA >= 90'}</span>
+              <span className="mono-tag block mb-1" style={{ color: 'var(--text-quaternary)' }}>Honor Students</span>
+              <span className="text-3xl font-light text-[#4ade80]">{allHonorStudents.length}</span>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {withHighestHonors.length > 0 && <span className="mono-tag" style={{ color: '#fbbf24', fontSize: '8px' }}>{withHighestHonors.length} HH</span>}
+                {withHighHonors.length > 0 && <span className="mono-tag" style={{ color: '#60a5fa', fontSize: '8px' }}>{withHighHonors.length} HI</span>}
+                {withHonors.length > 0 && <span className="mono-tag" style={{ color: '#4ade80', fontSize: '8px' }}>{withHonors.length} H</span>}
+              </div>
             </div>
             <div className="border p-4" style={{ borderColor: 'var(--border-primary)' }}>
               <span className="mono-tag block mb-1" style={{ color: 'var(--text-quaternary)' }}>Needs Support</span>
@@ -487,44 +547,134 @@ export function AdvisoryDashboard({ onViewStudent }: Props) {
             </div>
           </div>
 
-          {/* Honor Roll */}
+          {/* Honor Roll -- Three-tier system */}
           {honorRoll.length > 0 && (
             <div className="border p-5 mb-6" style={{ borderColor: 'var(--border-primary)', borderLeftWidth: '3px', borderLeftColor: '#fbbf24' }}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Academic Honor Roll</span>
-                <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>Students with honors based on overall academic performance</span>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Academic Honor Roll</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{honorRoll.length} students with honors</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#fbbf24' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-quaternary)', fontSize: '8px' }}>{'HIGHEST (98-100)'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-quaternary)', fontSize: '8px' }}>{'HIGH (95-97)'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#4ade80' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-quaternary)', fontSize: '8px' }}>{'HONORS (90-94)'}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="mono-tag px-2 py-0.5 border border-[#fbbf24]/30 text-[#fbbf24]">With Honors</span>
-                <span className="mono-tag" style={{ color: 'var(--text-tertiary)' }}>{honorRoll.length}</span>
-                <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>90-94% General Average</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                {honorRoll.slice(0, 8).map((s, rank) => {
-                  const gpa = getStudentGPA(s);
-                  return (
-                    <div key={s.id} className="border p-3 flex items-center gap-3 relative overflow-hidden transition-colors" style={{
-                      borderColor: rank < 3 ? '#fbbf24' + '44' : 'var(--border-primary)',
-                      background: rank < 3 ? 'rgba(251,191,36,0.04)' : 'transparent',
-                    }}
-                    onClick={() => onViewStudent?.(s)}
-                    >
-                      <div className="w-8 h-8 border overflow-hidden flex-shrink-0" style={{ borderColor: 'var(--border-secondary)', background: 'var(--bg-input)' }}>
-                        <img src={s.avatar} alt="" className="w-full h-full object-cover" style={{ filter: 'var(--avatar-invert)', opacity: 'var(--avatar-opacity)' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-light truncate block" style={{ color: 'var(--text-primary)' }}>
-                          {s.lastName}, {s.firstName}
-                        </span>
-                        <span className="mono-tag" style={{ color: '#4ade80' }}>GPA: {gpa}</span>
-                      </div>
-                      <span className="text-2xl font-extralight" style={{ color: rank < 3 ? '#fbbf24' : 'var(--text-ghost)', opacity: 0.5 }}>
-                        {rank + 1}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+
+              {/* With Highest Honors */}
+              {withHighestHonors.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1 h-3" style={{ background: '#fbbf24' }} />
+                    <span className="mono-tag" style={{ color: '#fbbf24' }}>With Highest Honors</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{withHighestHonors.length}</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-ghost)' }}>{'98-100 GPA'}</span>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(251,191,36,0.15)' }} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[...withHighestHonors].sort((a, b) => (getStudentGPA(b) ?? 0) - (getStudentGPA(a) ?? 0)).map((s, rank) => {
+                      const gpa = getStudentGPA(s);
+                      return (
+                        <div key={s.id} className="border p-3 flex items-center gap-3 relative overflow-hidden transition-colors" style={{
+                          borderColor: '#fbbf2444',
+                          background: 'rgba(251,191,36,0.04)',
+                        }} onClick={() => onViewStudent?.(s)}>
+                          <div className="w-8 h-8 border overflow-hidden flex-shrink-0" style={{ borderColor: '#fbbf2444', background: 'var(--bg-input)' }}>
+                            <img src={s.avatar} alt="" className="w-full h-full object-cover" style={{ filter: 'var(--avatar-invert)', opacity: 'var(--avatar-opacity)' }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-light truncate block" style={{ color: 'var(--text-primary)' }}>
+                              {s.lastName}, {s.firstName}
+                            </span>
+                            <span className="mono-tag" style={{ color: '#fbbf24' }}>GPA: {gpa}</span>
+                          </div>
+                          <span className="text-2xl font-extralight" style={{ color: '#fbbf24', opacity: 0.4 }}>{rank + 1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* With High Honors */}
+              {withHighHonors.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1 h-3" style={{ background: '#60a5fa' }} />
+                    <span className="mono-tag" style={{ color: '#60a5fa' }}>With High Honors</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{withHighHonors.length}</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-ghost)' }}>{'95-97 GPA'}</span>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(96,165,250,0.15)' }} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[...withHighHonors].sort((a, b) => (getStudentGPA(b) ?? 0) - (getStudentGPA(a) ?? 0)).map((s, rank) => {
+                      const gpa = getStudentGPA(s);
+                      return (
+                        <div key={s.id} className="border p-3 flex items-center gap-3 relative overflow-hidden transition-colors" style={{
+                          borderColor: '#60a5fa44',
+                          background: 'rgba(96,165,250,0.04)',
+                        }} onClick={() => onViewStudent?.(s)}>
+                          <div className="w-8 h-8 border overflow-hidden flex-shrink-0" style={{ borderColor: '#60a5fa44', background: 'var(--bg-input)' }}>
+                            <img src={s.avatar} alt="" className="w-full h-full object-cover" style={{ filter: 'var(--avatar-invert)', opacity: 'var(--avatar-opacity)' }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-light truncate block" style={{ color: 'var(--text-primary)' }}>
+                              {s.lastName}, {s.firstName}
+                            </span>
+                            <span className="mono-tag" style={{ color: '#60a5fa' }}>GPA: {gpa}</span>
+                          </div>
+                          <span className="text-2xl font-extralight" style={{ color: '#60a5fa', opacity: 0.4 }}>{rank + 1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* With Honors */}
+              {withHonors.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1 h-3" style={{ background: '#4ade80' }} />
+                    <span className="mono-tag" style={{ color: '#4ade80' }}>With Honors</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{withHonors.length}</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-ghost)' }}>{'90-94 GPA'}</span>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(74,222,128,0.15)' }} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[...withHonors].sort((a, b) => (getStudentGPA(b) ?? 0) - (getStudentGPA(a) ?? 0)).map((s, rank) => {
+                      const gpa = getStudentGPA(s);
+                      return (
+                        <div key={s.id} className="border p-3 flex items-center gap-3 relative overflow-hidden transition-colors" style={{
+                          borderColor: 'var(--border-primary)',
+                          background: 'rgba(74,222,128,0.03)',
+                        }} onClick={() => onViewStudent?.(s)}>
+                          <div className="w-8 h-8 border overflow-hidden flex-shrink-0" style={{ borderColor: 'var(--border-secondary)', background: 'var(--bg-input)' }}>
+                            <img src={s.avatar} alt="" className="w-full h-full object-cover" style={{ filter: 'var(--avatar-invert)', opacity: 'var(--avatar-opacity)' }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-light truncate block" style={{ color: 'var(--text-primary)' }}>
+                              {s.lastName}, {s.firstName}
+                            </span>
+                            <span className="mono-tag" style={{ color: '#4ade80' }}>GPA: {gpa}</span>
+                          </div>
+                          <span className="text-2xl font-extralight" style={{ color: 'var(--text-ghost)', opacity: 0.4 }}>{rank + 1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

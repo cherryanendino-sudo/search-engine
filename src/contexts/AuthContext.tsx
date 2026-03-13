@@ -2,6 +2,12 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 export type UserRole = 'finance' | 'registrar' | 'adviser' | 'subject_teacher';
 
+export interface AdvisorySection {
+  section: string;
+  gradeLevel: string;
+  strand?: string;
+}
+
 export interface User {
   username: string;
   displayName: string;
@@ -9,8 +15,11 @@ export interface User {
   // For adviser/teacher: linked faculty info
   facultyId: string | null;
   department: string | null;
+  // Legacy single advisory (kept for backward compat)
   advisorySection: string | null;
   advisoryGradeLevel: string | null;
+  // Multiple advisory sections
+  advisories: AdvisorySection[];
 }
 
 interface AuthContextValue {
@@ -34,8 +43,15 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       roles: ['finance', 'registrar', 'adviser', 'subject_teacher'],
       facultyId: null,
       department: null,
-      advisorySection: null,
-      advisoryGradeLevel: null,
+      advisorySection: 'Diamond',
+      advisoryGradeLevel: '10',
+      advisories: [
+        { section: 'Diamond', gradeLevel: '10' },
+        { section: 'Emerald', gradeLevel: '9' },
+        { section: 'Sampaguita', gradeLevel: '7' },
+        { section: 'Ruby', gradeLevel: '11', strand: 'STEM' },
+        { section: 'Sapphire', gradeLevel: '12', strand: 'ABM' },
+      ],
     },
   },
   registrar: {
@@ -48,6 +64,7 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       department: 'Registrar Office',
       advisorySection: null,
       advisoryGradeLevel: null,
+      advisories: [],
     },
   },
   adviser: {
@@ -60,6 +77,10 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       department: 'Mathematics',
       advisorySection: 'Diamond',
       advisoryGradeLevel: '10',
+      advisories: [
+        { section: 'Diamond', gradeLevel: '10' },
+        { section: 'Sapphire', gradeLevel: '12', strand: 'ABM' },
+      ],
     },
   },
   teacher: {
@@ -72,6 +93,7 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       department: 'Science',
       advisorySection: null,
       advisoryGradeLevel: null,
+      advisories: [],
     },
   },
   finance: {
@@ -84,6 +106,7 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       department: 'Finance Office',
       advisorySection: null,
       advisoryGradeLevel: null,
+      advisories: [],
     },
   },
   // A registrar who is also an adviser
@@ -97,6 +120,11 @@ const DEMO_USERS: Record<string, { password: string; user: User }> = {
       department: 'English',
       advisorySection: 'Emerald',
       advisoryGradeLevel: '9',
+      advisories: [
+        { section: 'Emerald', gradeLevel: '9' },
+        { section: 'Rosal', gradeLevel: '8' },
+        { section: 'Ruby', gradeLevel: '11', strand: 'STEM' },
+      ],
     },
   },
 };
