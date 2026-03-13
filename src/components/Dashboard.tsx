@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { useAuth } from '../contexts/AuthContext';
-import { students } from '../data/students';
+import { students, type Student } from '../data/students';
 import { faculty } from '../data/faculty';
 import { subjectOfferings } from '../data/subjects';
+import { AdvisoryDashboard } from './AdvisoryDashboard';
 
 interface Props {
   onNavigate: (view: 'students' | 'faculty' | 'subjects') => void;
+  onViewStudent?: (student: Student) => void;
 }
 
 // Simulated news/announcements
@@ -19,17 +21,9 @@ const announcements = [
   { id: 6, title: 'Science Fair registration closes March 12', date: '2025-02-28', tag: 'EVENTS', color: '#c084fc' },
 ];
 
-// Simulated schedule for today (for teachers/advisers)
-const todaySchedule = [
-  { time: '7:00 - 8:00', subject: 'General Mathematics', section: 'G10 - Diamond', room: 'Room 201' },
-  { time: '8:00 - 9:00', subject: 'Pre-Calculus', section: 'G11 - Emerald (STEM)', room: 'Room 301' },
-  { time: '9:00 - 10:00', subject: 'Statistics & Probability', section: 'G11 - Ruby (ABM)', room: 'Room 302' },
-  { time: '10:00 - 11:00', subject: 'General Mathematics', section: 'G10 - Sapphire', room: 'Room 201' },
-  { time: '1:00 - 2:00', subject: 'Basic Calculus', section: 'G12 - Amethyst (STEM)', room: 'Lab 1' },
-  { time: '2:00 - 3:00', subject: 'Advisory Period', section: 'G10 - Diamond', room: 'Room 201' },
-];
 
-export function Dashboard({ onNavigate }: Props) {
+
+export function Dashboard({ onNavigate, onViewStudent }: Props) {
   const { user, hasRole, hasAnyRole } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,85 +123,15 @@ export function Dashboard({ onNavigate }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Today's Schedule (for teachers/advisers) */}
-        {isTeacherOrAdviser && (
-          <div className="lg:col-span-2 dash-anim">
-            <div className="border p-6" style={{ borderColor: 'var(--border-primary)' }}>
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
-                  <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Today's Schedule</span>
-                </div>
-                <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
-                </span>
-              </div>
-              <div className="space-y-1">
-                {todaySchedule.map((slot, i) => {
-                  const isNow = i === 2; // Simulate "current" class
-                  return (
-                    <div key={i} className="flex items-center gap-4 py-3 px-3 transition-colors" style={{
-                      borderLeft: isNow ? '2px solid #4ade80' : '2px solid transparent',
-                      background: isNow ? 'rgba(74,222,128,0.04)' : 'transparent',
-                    }}>
-                      <span className="text-xs font-mono w-24 flex-shrink-0" style={{ color: isNow ? '#4ade80' : 'var(--text-quaternary)' }}>
-                        {slot.time}
-                      </span>
-                      <div className="flex-1">
-                        <span className="text-sm font-light block" style={{ color: isNow ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                          {slot.subject}
-                        </span>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{slot.section}</span>
-                          <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{slot.room}</span>
-                        </div>
-                      </div>
-                      {isNow && (
-                        <span className="mono-tag px-2 py-0.5 border border-[#4ade80]/30 text-[#4ade80]">NOW</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Advisory Dashboard for teachers/advisers */}
+      {isTeacherOrAdviser && (
+        <div className="dash-anim mb-8">
+          <AdvisoryDashboard onViewStudent={onViewStudent} />
+        </div>
+      )}
 
-        {/* Teaching Load Summary (for teachers) */}
-        {isTeacherOrAdviser && (
-          <div className="dash-anim">
-            <div className="border p-6 h-full" style={{ borderColor: 'var(--border-primary)' }}>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
-                <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>My Teaching Load</span>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <span className="mono-tag block mb-1">Subjects</span>
-                  <span className="text-2xl font-light">6</span>
-                </div>
-                <div>
-                  <span className="mono-tag block mb-1">Sections</span>
-                  <span className="text-2xl font-light">5</span>
-                </div>
-                <div>
-                  <span className="mono-tag block mb-1">Total Students</span>
-                  <span className="text-2xl font-light">187</span>
-                </div>
-                {user?.advisorySection && (
-                  <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-primary)' }}>
-                    <span className="mono-tag block mb-1">Advisory Class</span>
-                    <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>
-                      Grade {user.advisoryGradeLevel} - {user.advisorySection}
-                    </span>
-                    <span className="mono-tag block mt-1" style={{ color: 'var(--text-faint)' }}>38 students</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Placeholder for layout alignment */}
 
         {/* Registrar Quick Actions */}
         {isRegistrar && !isTeacherOrAdviser && (

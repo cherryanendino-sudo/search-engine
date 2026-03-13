@@ -236,7 +236,7 @@ function Dashboard() {
               </span>
             </div>
             <div ref={searchBoxRef}><div ref={filtersRef}><div ref={counterRef}>
-              <DashboardView onNavigate={(view) => setActiveView(view)} />
+              <DashboardView onNavigate={(view) => setActiveView(view)} onViewStudent={(s) => setSelectedStudent(s)} />
             </div></div></div>
           </>
         )}
