@@ -2,12 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import gsap from 'gsap';
 import type { Student } from '../data/students';
 import { getGradeLevelLabel } from '../data/students';
+import { useAuth } from '../contexts/AuthContext';
 
 type Tab = 'overview' | 'academic' | 'reports' | 'documents' | 'enrollment';
 
 interface Props {
   student: Student | null;
   onClose: () => void;
+  onStudentUpdate?: (updated: Student) => void;
 }
 
 const statusColor = (s: Student['status']) => {
@@ -27,13 +29,41 @@ const docStatusColor = (s: string) => {
   return '#f87171';
 };
 
-export function StudentProfile({ student, onClose }: Props) {
+interface EditableFields {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  suffix: string;
+  sex: 'Male' | 'Female';
+  dateOfBirth: string;
+  nationality: string;
+  religion: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  province: string;
+  zipCode: string;
+  guardianName: string;
+  guardianRelationship: string;
+  guardianPhone: string;
+  guardianEmail: string;
+  guardianOccupation: string;
+}
+
+export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [enrollModal, setEnrollModal] = useState(false);
   const [enrollGrade, setEnrollGrade] = useState('');
   const [enrollSection, setEnrollSection] = useState('');
   const [enrollSY, setEnrollSY] = useState('2025-2026');
   const [enrollSuccess, setEnrollSuccess] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFields, setEditFields] = useState<EditableFields | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const { user } = useAuth();
+  const canEdit = user?.role === 'admin' || user?.role === 'registrar';
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -45,6 +75,8 @@ export function StudentProfile({ student, onClose }: Props) {
     setActiveTab('overview');
     setEnrollModal(false);
     setEnrollSuccess(false);
+    setIsEditing(false);
+    setSaveSuccess(false);
 
     const tl = gsap.timeline();
     tl.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5, ease: 'power2.out' })
@@ -87,6 +119,80 @@ export function StudentProfile({ student, onClose }: Props) {
     setTimeout(() => setEnrollModal(false), 1500);
   };
 
+  const startEditing = () => {
+    if (!student) return;
+    setEditFields({
+      firstName: student.firstName,
+      middleName: student.middleName,
+      lastName: student.lastName,
+      suffix: student.suffix,
+      sex: student.sex,
+      dateOfBirth: student.dateOfBirth,
+      nationality: student.nationality,
+      religion: student.religion,
+      phone: student.phone,
+      email: student.email,
+      address: student.address,
+      city: student.city,
+      province: student.province,
+      zipCode: student.zipCode,
+      guardianName: student.guardian.name,
+      guardianRelationship: student.guardian.relationship,
+      guardianPhone: student.guardian.phone,
+      guardianEmail: student.guardian.email,
+      guardianOccupation: student.guardian.occupation,
+    });
+    setIsEditing(true);
+    setSaveSuccess(false);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditFields(null);
+    setSaveSuccess(false);
+  };
+
+  const saveEditing = () => {
+    if (!student || !editFields || !onStudentUpdate) return;
+
+    const updated: Student = {
+      ...student,
+      firstName: editFields.firstName,
+      middleName: editFields.middleName,
+      lastName: editFields.lastName,
+      suffix: editFields.suffix,
+      sex: editFields.sex,
+      dateOfBirth: editFields.dateOfBirth,
+      nationality: editFields.nationality,
+      religion: editFields.religion,
+      phone: editFields.phone,
+      email: editFields.email,
+      address: editFields.address,
+      city: editFields.city,
+      province: editFields.province,
+      zipCode: editFields.zipCode,
+      guardian: {
+        name: editFields.guardianName,
+        relationship: editFields.guardianRelationship,
+        phone: editFields.guardianPhone,
+        email: editFields.guardianEmail,
+        occupation: editFields.guardianOccupation,
+      },
+    };
+
+    onStudentUpdate(updated);
+    setSaveSuccess(true);
+    setTimeout(() => {
+      setIsEditing(false);
+      setEditFields(null);
+      setSaveSuccess(false);
+    }, 1200);
+  };
+
+  const updateField = (field: keyof EditableFields, value: string) => {
+    setEditFields((prev) => prev ? { ...prev, [field]: value } : prev);
+  };
+
   if (!student) return null;
 
   const sc = statusColor(student.status);
@@ -107,15 +213,15 @@ export function StudentProfile({ student, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50">
       <div ref={overlayRef} className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={handleClose} />
-      <div ref={profileRef} className="absolute inset-0 md:inset-4 lg:inset-6 bg-[#080808] border border-[#1a1a1a] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div ref={profileRef} className="absolute inset-0 md:inset-4 lg:inset-6 border overflow-hidden flex flex-col" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }} onClick={(e) => e.stopPropagation()}>
         
         {/* Top bar */}
         <div ref={contentRef}>
-          <div className="anim-item flex items-center justify-between px-6 md:px-10 py-4 border-b border-[#141414]">
+          <div className="anim-item flex items-center justify-between px-6 md:px-10 py-4" style={{ borderBottom: '1px solid var(--border-primary)' }}>
             <div className="flex items-center gap-4">
-              <button onClick={handleClose} className="w-9 h-9 border border-[#222] flex items-center justify-center hover:border-[#555] hover:bg-[#111] transition-all">
+              <button onClick={handleClose} className="w-9 h-9 border flex items-center justify-center transition-all" style={{ borderColor: 'var(--border-secondary)', }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-hover)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-secondary)'; }}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M10 2L4 7L10 12" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 2L4 7L10 12" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
               <div className="hidden sm:flex items-center gap-3">
@@ -126,20 +232,20 @@ export function StudentProfile({ student, onClose }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="mono-tag text-[#333]">STUDENT PROFILE</span>
-              <div className="w-px h-3 bg-[#222]" />
-              <span className="mono-tag text-[#333]">{student.studentId}</span>
+              <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>STUDENT PROFILE</span>
+              <div className="w-px h-3" style={{ background: 'var(--border-secondary)' }} />
+              <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{student.studentId}</span>
             </div>
           </div>
 
           {/* Profile header */}
-          <div className="anim-item px-6 md:px-10 py-6 md:py-8 border-b border-[#141414]">
+          <div className="anim-item px-6 md:px-10 py-6 md:py-8" style={{ borderBottom: '1px solid var(--border-primary)' }}>
             <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-start">
               {/* Avatar */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 md:w-32 md:h-32 border border-[#222] bg-[#0d0d0d] overflow-hidden relative">
-                  <img src={student.avatar} alt="" className="w-full h-full object-cover invert opacity-70" />
-                  <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#333] to-transparent" />
+                <div className="w-24 h-24 md:w-32 md:h-32 border overflow-hidden relative" style={{ borderColor: 'var(--border-secondary)', background: 'var(--bg-input)' }}>
+                  <img src={student.avatar} alt="" className="w-full h-full object-cover" style={{ filter: 'var(--avatar-invert)', opacity: 'var(--avatar-opacity)' }} />
+                  <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(to right, transparent, var(--border-tertiary), transparent)' }} />
                 </div>
               </div>
 
@@ -149,20 +255,20 @@ export function StudentProfile({ student, onClose }: Props) {
                   <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-none">
                     {student.firstName}
                   </h2>
-                  <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-none text-[#444]">
+                  <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-none" style={{ color: 'var(--text-muted)' }}>
                     {student.middleName.charAt(0)}. {student.lastName} {student.suffix}
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="mono-tag text-[#666]">LRN: {student.lrn}</span>
-                  <span className="mono-tag text-[#333]">|</span>
-                  <span className="mono-tag text-[#666]">{getGradeLevelLabel(student.gradeLevel)}</span>
-                  <span className="mono-tag text-[#333]">|</span>
-                  <span className="mono-tag text-[#666]">Section {student.section}</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-tertiary)' }}>LRN: {student.lrn}</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>|</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-tertiary)' }}>{getGradeLevelLabel(student.gradeLevel)}</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>|</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-tertiary)' }}>Section {student.section}</span>
                   {student.strand && (
                     <>
-                      <span className="mono-tag text-[#333]">|</span>
-                      <span className="mono-tag text-[#666]">{student.strand}</span>
+                      <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>|</span>
+                      <span className="mono-tag" style={{ color: 'var(--text-tertiary)' }}>{student.strand}</span>
                     </>
                   )}
                 </div>
@@ -174,12 +280,12 @@ export function StudentProfile({ student, onClose }: Props) {
                   <span className="mono-tag block mb-1">SUBJECTS</span>
                   <span className="text-2xl font-light">{student.academicLoad.length}</span>
                 </div>
-                <div className="w-px h-10 bg-[#1a1a1a]" />
+                <div className="w-px h-10" style={{ background: 'var(--border-primary)' }} />
                 <div className="text-center">
                   <span className="mono-tag block mb-1">UNITS</span>
                   <span className="text-2xl font-light">{totalUnits}</span>
                 </div>
-                <div className="w-px h-10 bg-[#1a1a1a]" />
+                <div className="w-px h-10" style={{ background: 'var(--border-primary)' }} />
                 <div className="text-center">
                   <span className="mono-tag block mb-1">DOCS</span>
                   <span className="text-2xl font-light">{submittedDocs}/{student.documents.length}</span>
@@ -189,19 +295,22 @@ export function StudentProfile({ student, onClose }: Props) {
           </div>
 
           {/* Tabs */}
-          <div className="anim-item px-6 md:px-10 border-b border-[#141414] overflow-x-auto scrollbar-hide">
+          <div className="anim-item px-6 md:px-10 overflow-x-auto scrollbar-hide" style={{ borderBottom: '1px solid var(--border-primary)' }}>
             <div className="flex gap-0 min-w-max">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative px-5 py-3.5 mono-tag transition-all duration-300 ${
-                    activeTab === tab.key ? 'text-white' : 'text-[#444] hover:text-[#888]'
+                    activeTab === tab.key ? '' : ''
                   }`}
+                  style={{
+                    color: activeTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
+                  }}
                 >
                   {tab.label}
                   {activeTab === tab.key && (
-                    <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-white" />
+                    <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background: 'var(--text-primary)' }} />
                   )}
                 </button>
               ))}
@@ -215,87 +324,230 @@ export function StudentProfile({ student, onClose }: Props) {
           {/* ========== OVERVIEW TAB ========== */}
           {activeTab === 'overview' && (
             <div className="max-w-6xl">
+              {/* Edit controls */}
+              {canEdit && (
+                <div className="tab-anim mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1 h-4" style={{ background: isEditing ? '#fbbf24' : 'var(--text-primary)' }} />
+                    <span className="mono-tag" style={{ color: isEditing ? '#fbbf24' : 'var(--text-primary)' }}>
+                      {isEditing ? 'Editing Mode' : 'Student Information'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {isEditing ? (
+                      <>
+                        {saveSuccess ? (
+                          <span className="mono-tag text-[#4ade80]">Saved successfully</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={cancelEditing}
+                              className="px-4 py-2 border mono-tag transition-all"
+                              style={{ borderColor: 'var(--border-secondary)', color: 'var(--text-tertiary)' }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={saveEditing}
+                              className="px-4 py-2 border mono-tag transition-all duration-300 bg-[#4ade80]/10 text-[#4ade80] border-[#4ade80]/30 hover:bg-[#4ade80]/20"
+                            >
+                              Save Changes
+                            </button>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={startEditing}
+                        className="px-4 py-2 border mono-tag transition-all"
+                        style={{ borderColor: 'var(--border-secondary)', color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-secondary)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                      >
+                        Edit Information
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                 
                 {/* Personal Information */}
                 <div className="lg:col-span-2 tab-anim">
-                  <div className="border border-[#151515] p-6">
+                  <div className="border p-6" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-1 h-4 bg-white" />
-                      <span className="mono-tag text-white">Personal Information</span>
+                      <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Personal Information</span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
-                      {([
-                        ['Full Name', `${student.firstName} ${student.middleName} ${student.lastName} ${student.suffix}`],
-                        ['Sex', student.sex],
-                        ['Date of Birth', new Date(student.dateOfBirth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })],
-                        ['Age', `${student.age} years old`],
-                        ['Nationality', student.nationality],
-                        ['Religion', student.religion],
-                      ] as [string, string][]).map(([label, value]) => (
-                        <div key={label}>
-                          <span className="mono-tag block mb-1.5">{label}</span>
-                          <span className="text-sm font-light text-[#ccc]">{value}</span>
+                    {isEditing && editFields ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+                        <div>
+                          <span className="mono-tag block mb-1.5">First Name</span>
+                          <input className="edit-input" value={editFields.firstName} onChange={(e) => updateField('firstName', e.target.value)} />
                         </div>
-                      ))}
-                    </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Middle Name</span>
+                          <input className="edit-input" value={editFields.middleName} onChange={(e) => updateField('middleName', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Last Name</span>
+                          <input className="edit-input" value={editFields.lastName} onChange={(e) => updateField('lastName', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Suffix</span>
+                          <input className="edit-input" value={editFields.suffix} onChange={(e) => updateField('suffix', e.target.value)} placeholder="Jr., III, etc." />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Sex</span>
+                          <select className="edit-input" value={editFields.sex} onChange={(e) => updateField('sex', e.target.value)}>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                          </select>
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Date of Birth</span>
+                          <input className="edit-input" type="date" value={editFields.dateOfBirth} onChange={(e) => updateField('dateOfBirth', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Nationality</span>
+                          <input className="edit-input" value={editFields.nationality} onChange={(e) => updateField('nationality', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Religion</span>
+                          <input className="edit-input" value={editFields.religion} onChange={(e) => updateField('religion', e.target.value)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+                        {([
+                          ['Full Name', `${student.firstName} ${student.middleName} ${student.lastName} ${student.suffix}`],
+                          ['Sex', student.sex],
+                          ['Date of Birth', new Date(student.dateOfBirth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })],
+                          ['Age', `${student.age} years old`],
+                          ['Nationality', student.nationality],
+                          ['Religion', student.religion],
+                        ] as [string, string][]).map(([label, value]) => (
+                          <div key={label}>
+                            <span className="mono-tag block mb-1.5">{label}</span>
+                            <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Contact Information */}
                 <div className="tab-anim">
-                  <div className="border border-[#151515] p-6 h-full">
+                  <div className="border p-6 h-full" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-1 h-4 bg-white" />
-                      <span className="mono-tag text-white">Contact</span>
+                      <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Contact</span>
                     </div>
-                    <div className="space-y-4">
-                      <div>
-                        <span className="mono-tag block mb-1.5">Email</span>
-                        <span className="text-sm font-mono text-[#888] break-all">{student.email}</span>
+                    {isEditing && editFields ? (
+                      <div className="space-y-4">
+                        <div>
+                          <span className="mono-tag block mb-1.5">Email</span>
+                          <input className="edit-input" value={editFields.email} onChange={(e) => updateField('email', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Phone</span>
+                          <input className="edit-input" value={editFields.phone} onChange={(e) => updateField('phone', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Address</span>
+                          <input className="edit-input" value={editFields.address} onChange={(e) => updateField('address', e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="mono-tag block mb-1.5">City</span>
+                            <input className="edit-input" value={editFields.city} onChange={(e) => updateField('city', e.target.value)} />
+                          </div>
+                          <div>
+                            <span className="mono-tag block mb-1.5">Province</span>
+                            <input className="edit-input" value={editFields.province} onChange={(e) => updateField('province', e.target.value)} />
+                          </div>
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Zip Code</span>
+                          <input className="edit-input" value={editFields.zipCode} onChange={(e) => updateField('zipCode', e.target.value)} />
+                        </div>
                       </div>
-                      <div>
-                        <span className="mono-tag block mb-1.5">Phone</span>
-                        <span className="text-sm font-mono text-[#888]">{student.phone}</span>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <span className="mono-tag block mb-1.5">Email</span>
+                          <span className="text-sm font-mono break-all" style={{ color: 'var(--text-tertiary)' }}>{student.email}</span>
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Phone</span>
+                          <span className="text-sm font-mono" style={{ color: 'var(--text-tertiary)' }}>{student.phone}</span>
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Address</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{student.address}, {student.city}, {student.province} {student.zipCode}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="mono-tag block mb-1.5">Address</span>
-                        <span className="text-sm font-light text-[#ccc]">{student.address}, {student.city}, {student.province} {student.zipCode}</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Guardian Information */}
                 <div className="lg:col-span-2 tab-anim">
-                  <div className="border border-[#151515] p-6">
+                  <div className="border p-6" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-1 h-4 bg-white" />
-                      <span className="mono-tag text-white">Guardian / Parent</span>
+                      <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Guardian / Parent</span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
-                      {([
-                        ['Name', student.guardian.name],
-                        ['Relationship', student.guardian.relationship],
-                        ['Phone', student.guardian.phone],
-                        ['Email', student.guardian.email],
-                        ['Occupation', student.guardian.occupation],
-                      ] as [string, string][]).map(([label, value]) => (
-                        <div key={label}>
-                          <span className="mono-tag block mb-1.5">{label}</span>
-                          <span className="text-sm font-light text-[#ccc]">{value}</span>
+                    {isEditing && editFields ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+                        <div>
+                          <span className="mono-tag block mb-1.5">Name</span>
+                          <input className="edit-input" value={editFields.guardianName} onChange={(e) => updateField('guardianName', e.target.value)} />
                         </div>
-                      ))}
-                    </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Relationship</span>
+                          <input className="edit-input" value={editFields.guardianRelationship} onChange={(e) => updateField('guardianRelationship', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Phone</span>
+                          <input className="edit-input" value={editFields.guardianPhone} onChange={(e) => updateField('guardianPhone', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Email</span>
+                          <input className="edit-input" value={editFields.guardianEmail} onChange={(e) => updateField('guardianEmail', e.target.value)} />
+                        </div>
+                        <div>
+                          <span className="mono-tag block mb-1.5">Occupation</span>
+                          <input className="edit-input" value={editFields.guardianOccupation} onChange={(e) => updateField('guardianOccupation', e.target.value)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+                        {([
+                          ['Name', student.guardian.name],
+                          ['Relationship', student.guardian.relationship],
+                          ['Phone', student.guardian.phone],
+                          ['Email', student.guardian.email],
+                          ['Occupation', student.guardian.occupation],
+                        ] as [string, string][]).map(([label, value]) => (
+                          <div key={label}>
+                            <span className="mono-tag block mb-1.5">{label}</span>
+                            <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Academic Summary */}
                 <div className="tab-anim">
-                  <div className="border border-[#151515] p-6 h-full">
+                  <div className="border p-6 h-full" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-1 h-4 bg-white" />
-                      <span className="mono-tag text-white">Academic Info</span>
+                      <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Academic Info</span>
                     </div>
                     <div className="space-y-4">
                       <div>
@@ -304,17 +556,17 @@ export function StudentProfile({ student, onClose }: Props) {
                       </div>
                       <div>
                         <span className="mono-tag block mb-1.5">Section</span>
-                        <span className="text-sm font-light text-[#ccc]">{student.section}</span>
+                        <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{student.section}</span>
                       </div>
                       {student.strand && (
                         <div>
                           <span className="mono-tag block mb-1.5">Strand / Track</span>
-                          <span className="text-sm font-light text-[#ccc]">{student.strand} — {student.track}</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{student.strand} -- {student.track}</span>
                         </div>
                       )}
                       <div>
                         <span className="mono-tag block mb-1.5">School Year</span>
-                        <span className="text-sm font-light text-[#ccc]">{student.currentSchoolYear}</span>
+                        <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{student.currentSchoolYear}</span>
                       </div>
                     </div>
                   </div>
@@ -323,20 +575,20 @@ export function StudentProfile({ student, onClose }: Props) {
                 {/* Previous General Averages */}
                 {pastReportCards.length > 0 && (
                   <div className="lg:col-span-3 tab-anim">
-                    <div className="border border-[#151515] p-6">
+                    <div className="border p-6" style={{ borderColor: 'var(--border-primary)' }}>
                       <div className="flex items-center gap-3 mb-6">
-                        <div className="w-1 h-4 bg-white" />
-                        <span className="mono-tag text-white">Academic History</span>
+                        <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                        <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Academic History</span>
                       </div>
                       <div className="flex gap-3 overflow-x-auto pb-2">
                         {pastReportCards.map((rc, idx) => (
-                          <div key={idx} className="flex-shrink-0 border border-[#1a1a1a] p-4 min-w-[140px] hover:border-[#333] transition-colors">
-                            <span className="mono-tag block mb-1 text-[#555]">{rc.schoolYear}</span>
-                            <span className="mono-tag block mb-3 text-[#777]">{getGradeLevelLabel(rc.gradeLevel)}</span>
-                            <span className="text-3xl font-light">{rc.generalAverage ?? '—'}</span>
-                            <span className="text-xs text-[#555] ml-1">avg</span>
-                            <div className="mt-2 h-[2px] bg-[#1a1a1a]">
-                              <div className="h-full bg-white transition-all" style={{ width: `${((rc.generalAverage ?? 0) / 100) * 100}%` }} />
+                          <div key={idx} className="flex-shrink-0 border p-4 min-w-[140px] transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
+                            <span className="mono-tag block mb-1" style={{ color: 'var(--text-quaternary)' }}>{rc.schoolYear}</span>
+                            <span className="mono-tag block mb-3" style={{ color: 'var(--text-tertiary)' }}>{getGradeLevelLabel(rc.gradeLevel)}</span>
+                            <span className="text-3xl font-light">{rc.generalAverage ?? '--'}</span>
+                            <span className="text-xs ml-1" style={{ color: 'var(--text-quaternary)' }}>avg</span>
+                            <div className="mt-2 h-[2px]" style={{ background: 'var(--gpa-bar-bg)' }}>
+                              <div className="h-full transition-all" style={{ background: 'var(--gpa-fill)', width: `${((rc.generalAverage ?? 0) / 100) * 100}%` }} />
                             </div>
                           </div>
                         ))}
@@ -353,25 +605,25 @@ export function StudentProfile({ student, onClose }: Props) {
             <div className="max-w-6xl">
               {student.academicLoad.length === 0 ? (
                 <div className="tab-anim py-20 text-center">
-                  <p className="text-2xl font-extralight text-[#333] mb-2">No Academic Load</p>
-                  <p className="mono-tag text-[#2a2a2a]">Student is not currently enrolled</p>
+                  <p className="text-2xl font-extralight mb-2" style={{ color: 'var(--text-faint)' }}>No Academic Load</p>
+                  <p className="mono-tag" style={{ color: 'var(--text-ghost)' }}>Student is not currently enrolled</p>
                 </div>
               ) : (
                 <>
                   <div className="tab-anim flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-1 h-4 bg-white" />
-                      <span className="mono-tag text-white">Current Subjects — S.Y. {student.currentSchoolYear}</span>
+                      <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Current Subjects -- S.Y. {student.currentSchoolYear}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="mono-tag text-[#555]">{student.academicLoad.length} subjects</span>
-                      <div className="w-px h-3 bg-[#222]" />
-                      <span className="mono-tag text-[#555]">{totalUnits} total units</span>
+                      <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{student.academicLoad.length} subjects</span>
+                      <div className="w-px h-3" style={{ background: 'var(--border-secondary)' }} />
+                      <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{totalUnits} total units</span>
                     </div>
                   </div>
 
                   {/* Subject list header */}
-                  <div className="tab-anim hidden md:grid grid-cols-12 gap-4 px-4 py-3 border-b border-[#1a1a1a] mb-1">
+                  <div className="tab-anim hidden md:grid grid-cols-12 gap-4 px-4 py-3 mb-1" style={{ borderBottom: '1px solid var(--border-primary)' }}>
                     <div className="col-span-1"><span className="mono-tag">Code</span></div>
                     <div className="col-span-3"><span className="mono-tag">Subject</span></div>
                     <div className="col-span-1"><span className="mono-tag">Units</span></div>
@@ -382,43 +634,43 @@ export function StudentProfile({ student, onClose }: Props) {
 
                   {student.academicLoad.map((subject, i) => (
                     <div key={i} className="tab-anim group">
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-4 py-4 border-b border-[#111] hover:bg-[#0d0d0d] transition-colors relative">
-                        <div className="absolute left-0 top-0 w-[2px] h-full bg-white scale-y-0 group-hover:scale-y-100 transition-transform origin-top" />
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-4 py-4 transition-colors relative" style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                        <div className="absolute left-0 top-0 w-[2px] h-full scale-y-0 group-hover:scale-y-100 transition-transform origin-top" style={{ background: 'var(--text-primary)' }} />
                         <div className="col-span-1">
-                          <span className="md:hidden mono-tag text-[#444] mr-2">CODE:</span>
-                          <span className="text-xs font-mono text-[#555]">{subject.code}</span>
+                          <span className="md:hidden mono-tag mr-2" style={{ color: 'var(--text-muted)' }}>CODE:</span>
+                          <span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{subject.code}</span>
                         </div>
                         <div className="col-span-3">
-                          <span className="text-sm font-light text-[#e0e0e0]">{subject.name}</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{subject.name}</span>
                         </div>
                         <div className="col-span-1">
-                          <span className="md:hidden mono-tag text-[#444] mr-2">UNITS:</span>
-                          <span className="text-sm font-mono text-[#777]">{subject.units}</span>
+                          <span className="md:hidden mono-tag mr-2" style={{ color: 'var(--text-muted)' }}>UNITS:</span>
+                          <span className="text-sm font-mono" style={{ color: 'var(--text-tertiary)' }}>{subject.units}</span>
                         </div>
                         <div className="col-span-2">
-                          <span className="md:hidden mono-tag text-[#444] mr-2">TEACHER:</span>
-                          <span className="text-sm font-light text-[#666]">{subject.teacher}</span>
+                          <span className="md:hidden mono-tag mr-2" style={{ color: 'var(--text-muted)' }}>TEACHER:</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-tertiary)' }}>{subject.teacher}</span>
                         </div>
                         <div className="col-span-3">
-                          <span className="md:hidden mono-tag text-[#444] mr-2">SCHED:</span>
-                          <span className="text-xs font-mono text-[#555]">{subject.schedule}</span>
+                          <span className="md:hidden mono-tag mr-2" style={{ color: 'var(--text-muted)' }}>SCHED:</span>
+                          <span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{subject.schedule}</span>
                         </div>
                         <div className="col-span-2">
-                          <span className="md:hidden mono-tag text-[#444] mr-2">ROOM:</span>
-                          <span className="text-xs font-mono text-[#555]">{subject.room}</span>
+                          <span className="md:hidden mono-tag mr-2" style={{ color: 'var(--text-muted)' }}>ROOM:</span>
+                          <span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{subject.room}</span>
                         </div>
                       </div>
                     </div>
                   ))}
 
                   {/* Summary bar */}
-                  <div className="tab-anim mt-6 border border-[#151515] p-5 flex flex-wrap items-center justify-between gap-4">
+                  <div className="tab-anim mt-6 border p-5 flex flex-wrap items-center justify-between gap-4" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center gap-6">
                       <div>
                         <span className="mono-tag block mb-1">Total Subjects</span>
                         <span className="text-xl font-light">{student.academicLoad.length}</span>
                       </div>
-                      <div className="w-px h-8 bg-[#1a1a1a]" />
+                      <div className="w-px h-8" style={{ background: 'var(--border-primary)' }} />
                       <div>
                         <span className="mono-tag block mb-1">Total Units</span>
                         <span className="text-xl font-light">{totalUnits}</span>
@@ -439,8 +691,8 @@ export function StudentProfile({ student, onClose }: Props) {
             <div className="max-w-6xl">
               {student.reportCards.length === 0 ? (
                 <div className="tab-anim py-20 text-center">
-                  <p className="text-2xl font-extralight text-[#333] mb-2">No Report Cards</p>
-                  <p className="mono-tag text-[#2a2a2a]">No academic records available</p>
+                  <p className="text-2xl font-extralight mb-2" style={{ color: 'var(--text-faint)' }}>No Report Cards</p>
+                  <p className="mono-tag" style={{ color: 'var(--text-ghost)' }}>No academic records available</p>
                 </div>
               ) : (
                 <>
@@ -449,20 +701,20 @@ export function StudentProfile({ student, onClose }: Props) {
                     <div className="tab-anim mb-8">
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-1 h-4 bg-white" />
-                          <span className="mono-tag text-white">
-                            S.Y. {currentReportCard.schoolYear} — {getGradeLevelLabel(currentReportCard.gradeLevel)}
+                          <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                          <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>
+                            S.Y. {currentReportCard.schoolYear} -- {getGradeLevelLabel(currentReportCard.gradeLevel)}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="mono-tag text-[#555]">Section: {currentReportCard.section}</span>
-                          <span className="mono-tag text-[#555]">Adviser: {currentReportCard.adviser}</span>
+                          <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Section: {currentReportCard.section}</span>
+                          <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Adviser: {currentReportCard.adviser}</span>
                         </div>
                       </div>
 
-                      <div className="border border-[#151515] overflow-hidden">
+                      <div className="border overflow-hidden" style={{ borderColor: 'var(--border-primary)' }}>
                         {/* Header */}
-                        <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3 bg-[#0c0c0c] border-b border-[#1a1a1a]">
+                        <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-primary)' }}>
                           <div className="col-span-4"><span className="mono-tag">Subject</span></div>
                           <div className="col-span-1 text-center"><span className="mono-tag">Q1</span></div>
                           <div className="col-span-1 text-center"><span className="mono-tag">Q2</span></div>
@@ -473,33 +725,33 @@ export function StudentProfile({ student, onClose }: Props) {
                         </div>
 
                         {currentReportCard.entries.map((entry, i) => (
-                          <div key={i} className="tab-anim grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-2 px-4 py-3 border-b border-[#0f0f0f] hover:bg-[#0d0d0d] transition-colors">
+                          <div key={i} className="tab-anim grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-2 px-4 py-3 transition-colors" style={{ borderBottom: '1px solid var(--border-primary)' }}>
                             <div className="col-span-4 flex items-center gap-2">
-                              <span className="text-sm font-light text-[#ccc]">{entry.subjectName}</span>
+                              <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{entry.subjectName}</span>
                             </div>
                             <div className="col-span-1 text-center">
-                              <span className={`text-sm font-mono ${entry.q1 !== null && entry.q1 >= 75 ? 'text-[#888]' : 'text-[#f87171]'}`}>
-                                {entry.q1 ?? '—'}
+                              <span className={`text-sm font-mono ${entry.q1 !== null && entry.q1 >= 75 ? '' : 'text-[#f87171]'}`} style={entry.q1 !== null && entry.q1 >= 75 ? { color: 'var(--text-tertiary)' } : {}}>
+                                {entry.q1 ?? '--'}
                               </span>
                             </div>
                             <div className="col-span-1 text-center">
-                              <span className={`text-sm font-mono ${entry.q2 !== null ? (entry.q2 >= 75 ? 'text-[#888]' : 'text-[#f87171]') : 'text-[#333]'}`}>
-                                {entry.q2 ?? '—'}
+                              <span className={`text-sm font-mono ${entry.q2 !== null ? (entry.q2 >= 75 ? '' : 'text-[#f87171]') : ''}`} style={entry.q2 !== null && entry.q2 >= 75 ? { color: 'var(--text-tertiary)' } : entry.q2 === null ? { color: 'var(--text-faint)' } : {}}>
+                                {entry.q2 ?? '--'}
                               </span>
                             </div>
                             <div className="col-span-1 text-center">
-                              <span className={`text-sm font-mono ${entry.q3 !== null ? (entry.q3 >= 75 ? 'text-[#888]' : 'text-[#f87171]') : 'text-[#333]'}`}>
-                                {entry.q3 ?? '—'}
+                              <span className={`text-sm font-mono ${entry.q3 !== null ? (entry.q3 >= 75 ? '' : 'text-[#f87171]') : ''}`} style={entry.q3 !== null && entry.q3 >= 75 ? { color: 'var(--text-tertiary)' } : entry.q3 === null ? { color: 'var(--text-faint)' } : {}}>
+                                {entry.q3 ?? '--'}
                               </span>
                             </div>
                             <div className="col-span-1 text-center">
-                              <span className={`text-sm font-mono ${entry.q4 !== null ? (entry.q4 >= 75 ? 'text-[#888]' : 'text-[#f87171]') : 'text-[#333]'}`}>
-                                {entry.q4 ?? '—'}
+                              <span className={`text-sm font-mono ${entry.q4 !== null ? (entry.q4 >= 75 ? '' : 'text-[#f87171]') : ''}`} style={entry.q4 !== null && entry.q4 >= 75 ? { color: 'var(--text-tertiary)' } : entry.q4 === null ? { color: 'var(--text-faint)' } : {}}>
+                                {entry.q4 ?? '--'}
                               </span>
                             </div>
                             <div className="col-span-2 text-center">
-                              <span className={`text-sm font-mono font-semibold ${entry.finalGrade !== null ? (entry.finalGrade >= 75 ? 'text-white' : 'text-[#f87171]') : 'text-[#333]'}`}>
-                                {entry.finalGrade ?? '—'}
+                              <span className={`text-sm font-mono font-semibold ${entry.finalGrade !== null ? (entry.finalGrade >= 75 ? '' : 'text-[#f87171]') : ''}`} style={entry.finalGrade !== null && entry.finalGrade >= 75 ? { color: 'var(--text-primary)' } : entry.finalGrade === null ? { color: 'var(--text-faint)' } : {}}>
+                                {entry.finalGrade ?? '--'}
                               </span>
                             </div>
                             <div className="col-span-2 text-right">
@@ -511,14 +763,14 @@ export function StudentProfile({ student, onClose }: Props) {
                         ))}
 
                         {/* General Average */}
-                        <div className="tab-anim grid grid-cols-12 gap-2 px-4 py-4 bg-[#0c0c0c]">
+                        <div className="tab-anim grid grid-cols-12 gap-2 px-4 py-4" style={{ background: 'var(--bg-card)' }}>
                           <div className="col-span-4">
-                            <span className="text-sm font-semibold text-white">General Average</span>
+                            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>General Average</span>
                           </div>
                           <div className="col-span-4" />
                           <div className="col-span-2 text-center">
-                            <span className="text-lg font-mono font-semibold text-white">
-                              {currentReportCard.generalAverage ?? '—'}
+                            <span className="text-lg font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {currentReportCard.generalAverage ?? '--'}
                             </span>
                           </div>
                           <div className="col-span-2" />
@@ -531,43 +783,43 @@ export function StudentProfile({ student, onClose }: Props) {
                   {pastReportCards.length > 0 && (
                     <div className="tab-anim">
                       <div className="flex items-center gap-3 mb-5">
-                        <div className="w-1 h-4 bg-[#333]" />
-                        <span className="mono-tag text-[#555]">Previous Records</span>
+                        <div className="w-1 h-4" style={{ background: 'var(--border-tertiary)' }} />
+                        <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Previous Records</span>
                       </div>
 
                       <div className="space-y-4">
                         {pastReportCards.map((rc, idx) => (
-                          <details key={idx} className="tab-anim group border border-[#151515]">
-                            <summary className="flex items-center justify-between px-4 py-3 hover:bg-[#0d0d0d] transition-colors cursor-pointer list-none">
+                          <details key={idx} className="tab-anim group border" style={{ borderColor: 'var(--border-primary)' }}>
+                            <summary className="flex items-center justify-between px-4 py-3 transition-colors cursor-pointer list-none">
                               <div className="flex items-center gap-4">
-                                <svg className="w-3 h-3 text-[#555] transition-transform group-open:rotate-90" viewBox="0 0 12 12" fill="none">
+                                <svg className="w-3 h-3 transition-transform group-open:rotate-90" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--text-quaternary)' }}>
                                   <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
-                                <span className="text-sm font-light text-[#aaa]">{rc.schoolYear}</span>
-                                <span className="mono-tag text-[#555]">{getGradeLevelLabel(rc.gradeLevel)}</span>
-                                <span className="mono-tag text-[#333]">SEC. {rc.section}</span>
+                                <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{rc.schoolYear}</span>
+                                <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{getGradeLevelLabel(rc.gradeLevel)}</span>
+                                <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>SEC. {rc.section}</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="mono-tag text-[#555]">AVG:</span>
-                                <span className="text-lg font-mono font-light text-[#aaa]">{rc.generalAverage ?? '—'}</span>
+                                <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>AVG:</span>
+                                <span className="text-lg font-mono font-light" style={{ color: 'var(--text-secondary)' }}>{rc.generalAverage ?? '--'}</span>
                               </div>
                             </summary>
-                            <div className="border-t border-[#151515]">
+                            <div style={{ borderTop: '1px solid var(--border-primary)' }}>
                               {rc.entries.map((entry, ei) => (
-                                <div key={ei} className="grid grid-cols-12 gap-2 px-4 py-2 border-b border-[#0a0a0a]">
+                                <div key={ei} className="grid grid-cols-12 gap-2 px-4 py-2" style={{ borderBottom: '1px solid var(--bg-tertiary)' }}>
                                   <div className="col-span-5 md:col-span-4">
-                                    <span className="text-xs font-light text-[#888]">{entry.subjectName}</span>
+                                    <span className="text-xs font-light" style={{ color: 'var(--text-tertiary)' }}>{entry.subjectName}</span>
                                   </div>
-                                  <div className="col-span-1 text-center"><span className="text-xs font-mono text-[#555]">{entry.q1 ?? '—'}</span></div>
-                                  <div className="col-span-1 text-center"><span className="text-xs font-mono text-[#555]">{entry.q2 ?? '—'}</span></div>
-                                  <div className="col-span-1 text-center"><span className="text-xs font-mono text-[#555]">{entry.q3 ?? '—'}</span></div>
-                                  <div className="col-span-1 text-center"><span className="text-xs font-mono text-[#555]">{entry.q4 ?? '—'}</span></div>
+                                  <div className="col-span-1 text-center"><span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{entry.q1 ?? '--'}</span></div>
+                                  <div className="col-span-1 text-center"><span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{entry.q2 ?? '--'}</span></div>
+                                  <div className="col-span-1 text-center"><span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{entry.q3 ?? '--'}</span></div>
+                                  <div className="col-span-1 text-center"><span className="text-xs font-mono" style={{ color: 'var(--text-quaternary)' }}>{entry.q4 ?? '--'}</span></div>
                                   <div className="col-span-2 md:col-span-1 text-center">
-                                    <span className="text-xs font-mono font-semibold text-[#aaa]">{entry.finalGrade ?? '—'}</span>
+                                    <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-secondary)' }}>{entry.finalGrade ?? '--'}</span>
                                   </div>
                                   <div className="col-span-1 md:col-span-2 text-right">
                                     <span className={`mono-tag ${entry.remarks === 'Passed' ? 'text-[#4ade80]' : 'text-[#f87171]'}`}>
-                                      {entry.remarks === 'Passed' ? '✓' : '✗'}
+                                      {entry.remarks === 'Passed' ? 'P' : 'F'}
                                     </span>
                                   </div>
                                 </div>
@@ -588,8 +840,8 @@ export function StudentProfile({ student, onClose }: Props) {
             <div className="max-w-6xl">
               <div className="tab-anim flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-1 h-4 bg-white" />
-                  <span className="mono-tag text-white">Student Documents</span>
+                  <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                  <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Student Documents</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="mono-tag text-[#4ade80]">{submittedDocs} submitted</span>
@@ -600,36 +852,36 @@ export function StudentProfile({ student, onClose }: Props) {
 
               {/* Progress bar */}
               <div className="tab-anim mb-8">
-                <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-white to-[#666] rounded-full transition-all duration-700"
-                    style={{ width: `${(submittedDocs / student.documents.length) * 100}%` }} />
+                <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--border-primary)' }}>
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ background: 'var(--gpa-fill)', width: `${(submittedDocs / student.documents.length) * 100}%` }} />
                 </div>
                 <div className="flex justify-between mt-2">
-                  <span className="mono-tag text-[#333]">Completion</span>
-                  <span className="mono-tag text-[#555]">{Math.round((submittedDocs / student.documents.length) * 100)}%</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>Completion</span>
+                  <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>{Math.round((submittedDocs / student.documents.length) * 100)}%</span>
                 </div>
               </div>
 
               <div className="space-y-2">
                 {student.documents.map((doc, i) => (
-                  <div key={i} className="tab-anim group border border-[#141414] hover:border-[#222] transition-colors">
+                  <div key={i} className="tab-anim group border transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="flex items-center justify-between px-5 py-4">
                       <div className="flex items-center gap-4">
                         {/* Icon */}
-                        <div className="w-10 h-10 border border-[#1a1a1a] flex items-center justify-center flex-shrink-0 group-hover:border-[#333] transition-colors">
+                        <div className="w-10 h-10 border flex items-center justify-center flex-shrink-0 transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M9 1H3.5A1.5 1.5 0 002 2.5v11A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V6L9 1z" stroke="#555" strokeWidth="1" />
-                            <path d="M9 1v5h5" stroke="#555" strokeWidth="1" />
+                            <path d="M9 1H3.5A1.5 1.5 0 002 2.5v11A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V6L9 1z" stroke="var(--text-quaternary)" strokeWidth="1" />
+                            <path d="M9 1v5h5" stroke="var(--text-quaternary)" strokeWidth="1" />
                           </svg>
                         </div>
                         <div>
-                          <span className="text-sm font-light text-[#ccc] block">{doc.name}</span>
+                          <span className="text-sm font-light block" style={{ color: 'var(--text-secondary)' }}>{doc.name}</span>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="mono-tag text-[#333]">{doc.type.toUpperCase().replace('_', ' ')}</span>
+                            <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{doc.type.toUpperCase().replace('_', ' ')}</span>
                             {doc.fileSize && (
                               <>
-                                <span className="mono-tag text-[#222]">|</span>
-                                <span className="mono-tag text-[#333]">{doc.fileSize}</span>
+                                <span className="mono-tag" style={{ color: 'var(--text-invisible)' }}>|</span>
+                                <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{doc.fileSize}</span>
                               </>
                             )}
                           </div>
@@ -637,7 +889,7 @@ export function StudentProfile({ student, onClose }: Props) {
                       </div>
                       <div className="flex items-center gap-4">
                         {doc.dateSubmitted && (
-                          <span className="mono-tag text-[#333] hidden sm:inline">{doc.dateSubmitted}</span>
+                          <span className="mono-tag hidden sm:inline" style={{ color: 'var(--text-faint)' }}>{doc.dateSubmitted}</span>
                         )}
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full" style={{ background: docStatusColor(doc.status) }} />
@@ -658,20 +910,23 @@ export function StudentProfile({ student, onClose }: Props) {
             <div className="max-w-6xl">
               {/* Enroll action */}
               <div className="tab-anim mb-8">
-                <div className="border border-[#1a1a1a] p-6">
+                <div className="border p-6" style={{ borderColor: 'var(--border-primary)' }}>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-1 h-4 bg-[#4ade80]" />
-                      <span className="mono-tag text-white">Enroll to New Term</span>
+                      <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Enroll to New Term</span>
                     </div>
-                    <span className="mono-tag text-[#333]">REGISTRAR ACTION</span>
+                    <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>REGISTRAR ACTION</span>
                   </div>
-                  <p className="text-sm font-light text-[#555] mb-5">
+                  <p className="text-sm font-light mb-5" style={{ color: 'var(--text-quaternary)' }}>
                     Enroll this student to a new school year or term. This action will create a new enrollment record.
                   </p>
                   <button
                     onClick={() => { setEnrollModal(true); setEnrollSuccess(false); }}
-                    className="px-6 py-3 border border-white text-white mono-tag hover:bg-white hover:text-black transition-all duration-300"
+                    className="px-6 py-3 border mono-tag transition-all duration-300"
+                    style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--text-primary)'; e.currentTarget.style.color = 'var(--bg-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                   >
                     + Enroll Student
                   </button>
@@ -680,13 +935,13 @@ export function StudentProfile({ student, onClose }: Props) {
 
               {/* Enrollment Timeline */}
               <div className="tab-anim flex items-center gap-3 mb-6">
-                <div className="w-1 h-4 bg-white" />
-                <span className="mono-tag text-white">Enrollment History</span>
+                <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Enrollment History</span>
               </div>
 
               <div className="relative">
                 {/* Timeline line */}
-                <div className="absolute left-[19px] top-0 bottom-0 w-px bg-[#1a1a1a]" />
+                <div className="absolute left-[19px] top-0 bottom-0 w-px" style={{ background: 'var(--border-primary)' }} />
 
                 {[...student.enrollmentHistory].reverse().map((record, i) => (
                   <div key={i} className="tab-anim relative flex gap-6 mb-6 last:mb-0">
@@ -695,12 +950,12 @@ export function StudentProfile({ student, onClose }: Props) {
                       <div className={`w-[10px] h-[10px] rounded-full border-2 ${
                         record.status === 'enrolled' ? 'border-[#4ade80] bg-[#4ade80]' :
                         record.status === 'completed' ? 'border-[#60a5fa] bg-transparent' :
-                        'border-[#555] bg-transparent'
+                        'border-[var(--text-quaternary)] bg-transparent'
                       }`} style={{ marginLeft: '15px' }} />
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 border border-[#151515] p-5 hover:border-[#222] transition-colors">
+                    <div className="flex-1 border p-5 transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <span className="text-base font-light">{record.schoolYear}</span>
                         <div className="flex items-center gap-2">
@@ -721,15 +976,15 @@ export function StudentProfile({ student, onClose }: Props) {
                       <div className="flex flex-wrap gap-x-6 gap-y-2">
                         <div>
                           <span className="mono-tag block mb-1">Grade Level</span>
-                          <span className="text-sm font-light text-[#aaa]">{getGradeLevelLabel(record.gradeLevel)}</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{getGradeLevelLabel(record.gradeLevel)}</span>
                         </div>
                         <div>
                           <span className="mono-tag block mb-1">Section</span>
-                          <span className="text-sm font-light text-[#aaa]">{record.section}</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{record.section}</span>
                         </div>
                         <div>
                           <span className="mono-tag block mb-1">Date Enrolled</span>
-                          <span className="text-sm font-light text-[#aaa]">{record.dateEnrolled}</span>
+                          <span className="text-sm font-light" style={{ color: 'var(--text-secondary)' }}>{record.dateEnrolled}</span>
                         </div>
                       </div>
                     </div>
@@ -741,9 +996,9 @@ export function StudentProfile({ student, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 md:px-10 py-3 border-t border-[#141414] flex items-center justify-between">
-          <span className="mono-tag text-[#222]">UNIVERS.EDU — STUDENT INFORMATION SYSTEM</span>
-          <span className="mono-tag text-[#222]">S.Y. 2024-2025</span>
+        <div className="px-6 md:px-10 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border-primary)' }}>
+          <span className="mono-tag" style={{ color: 'var(--text-invisible)' }}>UNIVERS.EDU -- STUDENT INFORMATION SYSTEM</span>
+          <span className="mono-tag" style={{ color: 'var(--text-invisible)' }}>S.Y. 2024-2025</span>
         </div>
       </div>
 
@@ -751,7 +1006,7 @@ export function StudentProfile({ student, onClose }: Props) {
       {enrollModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEnrollModal(false)} />
-          <div className="relative bg-[#0a0a0a] border border-[#1a1a1a] w-full max-w-md p-8">
+          <div className="relative border w-full max-w-md p-8" style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
             {enrollSuccess ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 border border-[#4ade80] rounded-full flex items-center justify-center mx-auto mb-4">
@@ -760,31 +1015,32 @@ export function StudentProfile({ student, onClose }: Props) {
                   </svg>
                 </div>
                 <p className="text-lg font-light text-[#4ade80] mb-2">Enrollment Successful</p>
-                <p className="mono-tag text-[#555]">Student has been enrolled</p>
+                <p className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Student has been enrolled</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
-                    <div className="w-1 h-4 bg-white" />
-                    <span className="mono-tag text-white">New Enrollment</span>
+                    <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>New Enrollment</span>
                   </div>
-                  <button onClick={() => setEnrollModal(false)} className="w-8 h-8 border border-[#222] flex items-center justify-center hover:border-[#555] transition-colors">
+                  <button onClick={() => setEnrollModal(false)} className="w-8 h-8 border flex items-center justify-center transition-colors" style={{ borderColor: 'var(--border-secondary)' }}>
                     <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                      <path d="M1 1L13 13M13 1L1 13" stroke="#888" strokeWidth="1.5" />
+                      <path d="M1 1L13 13M13 1L1 13" stroke="var(--text-tertiary)" strokeWidth="1.5" />
                     </svg>
                   </button>
                 </div>
 
-                <div className="mb-4 pb-4 border-b border-[#141414]">
-                  <span className="text-sm font-light text-[#888]">Enrolling: {student.firstName} {student.lastName}</span>
+                <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                  <span className="text-sm font-light" style={{ color: 'var(--text-tertiary)' }}>Enrolling: {student.firstName} {student.lastName}</span>
                 </div>
 
                 <div className="space-y-5">
                   <div>
                     <label className="mono-tag block mb-2">School Year</label>
                     <select value={enrollSY} onChange={(e) => setEnrollSY(e.target.value)}
-                      className="w-full bg-[#0d0d0d] border border-[#1a1a1a] px-4 py-3 text-sm font-light text-white focus:border-[#555] outline-none transition-colors">
+                      className="w-full px-4 py-3 text-sm font-light outline-none transition-colors"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}>
                       <option value="2025-2026">2025-2026</option>
                       <option value="2024-2025">2024-2025</option>
                     </select>
@@ -792,7 +1048,8 @@ export function StudentProfile({ student, onClose }: Props) {
                   <div>
                     <label className="mono-tag block mb-2">Grade Level</label>
                     <select value={enrollGrade} onChange={(e) => setEnrollGrade(e.target.value)}
-                      className="w-full bg-[#0d0d0d] border border-[#1a1a1a] px-4 py-3 text-sm font-light text-white focus:border-[#555] outline-none transition-colors">
+                      className="w-full px-4 py-3 text-sm font-light outline-none transition-colors"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}>
                       <option value="">Select grade level</option>
                       <option value="K">Kindergarten</option>
                       {Array.from({ length: 12 }, (_, i) => (
@@ -804,14 +1061,26 @@ export function StudentProfile({ student, onClose }: Props) {
                     <label className="mono-tag block mb-2">Section</label>
                     <input type="text" value={enrollSection} onChange={(e) => setEnrollSection(e.target.value)}
                       placeholder="Enter section name"
-                      className="w-full bg-[#0d0d0d] border border-[#1a1a1a] px-4 py-3 text-sm font-light text-white placeholder-[#333] focus:border-[#555] outline-none transition-colors" />
+                      className="w-full px-4 py-3 text-sm font-light outline-none transition-colors"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
 
                 <button
                   onClick={handleEnroll}
                   disabled={!enrollGrade || !enrollSection}
-                  className="mt-8 w-full py-3 border border-white text-white mono-tag hover:bg-white hover:text-black transition-all duration-300 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-white disabled:cursor-not-allowed"
+                  className="mt-8 w-full py-3 border mono-tag transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
+                  style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)' }}
+                  onMouseEnter={(e) => {
+                    if (!(e.currentTarget as HTMLButtonElement).disabled) {
+                      e.currentTarget.style.background = 'var(--text-primary)';
+                      e.currentTarget.style.color = 'var(--bg-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                  }}
                 >
                   Confirm Enrollment
                 </button>
