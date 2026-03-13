@@ -29,13 +29,33 @@ export interface ReportCard {
   generalAverage: number | null;
 }
 
+export interface DocumentVersion {
+  version: number;
+  filename: string;
+  dateUploaded: string;
+  fileSize: string;
+}
+
+export interface DocumentComment {
+  id: string;
+  author: string;
+  date: string;
+  text: string;
+}
+
 export interface Document {
   id: string;
   name: string;
   type: 'birth_cert' | 'form137' | 'form138' | 'good_moral' | 'report_card' | 'photo' | 'medical' | 'transfer' | 'enrollment_form' | 'other';
   status: 'submitted' | 'pending' | 'missing';
+  verificationStatus: 'approved' | 'pending' | 'rejected' | 'unverified';
+  verifiedBy: string | null;
+  notes: string | null;
   dateSubmitted: string | null;
   fileSize: string | null;
+  currentVersion: number;
+  versions: DocumentVersion[];
+  comments: DocumentComment[];
 }
 
 export interface EnrollmentRecord {
@@ -315,16 +335,69 @@ function generateStudents(): Student[] {
     }
 
     // Documents
+    const verifierNames = ['RICHMOND ABUEVA, LPT, MAED - MATH', 'MARIA SANTOS, LPT', 'JOSE REYES, PhD', 'ANA CRUZ, LPT, MAEd'];
+    const commentTexts = ['Document approved', 'Please resubmit with updated information', 'Verified and filed', 'Pending review by registrar', 'Original copy received'];
     const documents: Document[] = documentTypes.map((dt, di) => {
       const statusRoll = rand();
       const docStatus: Document['status'] = statusRoll > 0.3 ? 'submitted' : statusRoll > 0.1 ? 'pending' : 'missing';
+      const dateSubmitted = docStatus === 'submitted' ? `${2024 - Math.floor(rand() * 3)}-${String(Math.floor(rand() * 12) + 1).padStart(2, '0')}-${String(Math.floor(rand() * 28) + 1).padStart(2, '0')}` : null;
+      const fileSize = docStatus === 'submitted' ? `${(rand() * 4 + 0.5).toFixed(1)} MB` : null;
+
+      // Verification status
+      const verRoll = rand();
+      const verificationStatus: Document['verificationStatus'] = docStatus === 'submitted'
+        ? (verRoll > 0.3 ? 'approved' : verRoll > 0.1 ? 'pending' : 'rejected')
+        : 'unverified';
+      const verifiedBy = verificationStatus === 'approved' ? pick(verifierNames, rand) : null;
+
+      // Notes
+      const notesRoll = rand();
+      const notes = docStatus === 'submitted' && notesRoll > 0.6 ? pick(['Original copy on file', 'Photocopy accepted', 'Awaiting original', 'No notes'], rand) : null;
+
+      // Versions
+      const numVersions = docStatus === 'submitted' ? 1 + (rand() > 0.7 ? 1 : 0) + (rand() > 0.9 ? 1 : 0) : 0;
+      const docId = `${dt.type.toUpperCase()}_${String(Math.floor(rand() * 100000000)).padStart(8, '0')}`;
+      const versions: DocumentVersion[] = [];
+      for (let v = 1; v <= numVersions; v++) {
+        const vYear = 2024 - Math.floor(rand() * 2);
+        const vMonth = Math.floor(rand() * 12) + 1;
+        const vDay = Math.floor(rand() * 28) + 1;
+        versions.push({
+          version: v,
+          filename: `${docId}_v${v}.pdf`,
+          dateUploaded: `${vYear}-${String(vMonth).padStart(2, '0')}-${String(vDay).padStart(2, '0')}`,
+          fileSize: `${(rand() * 4 + 0.5).toFixed(1)} MB`,
+        });
+      }
+
+      // Comments
+      const numComments = docStatus === 'submitted' ? (rand() > 0.4 ? 1 : 0) + (rand() > 0.7 ? 1 : 0) : 0;
+      const comments: DocumentComment[] = [];
+      for (let c = 0; c < numComments; c++) {
+        const cYear = 2024 - Math.floor(rand() * 2);
+        const cMonth = Math.floor(rand() * 12) + 1;
+        const cDay = Math.floor(rand() * 28) + 1;
+        comments.push({
+          id: `cmt-${i}-${di}-${c}`,
+          author: pick(verifierNames, rand),
+          date: `${cYear}-${String(cMonth).padStart(2, '0')}-${String(cDay).padStart(2, '0')}`,
+          text: pick(commentTexts, rand),
+        });
+      }
+
       return {
         id: `doc-${i}-${di}`,
         name: dt.name,
         type: dt.type,
         status: docStatus,
-        dateSubmitted: docStatus === 'submitted' ? `${2024 - Math.floor(rand() * 3)}-${String(Math.floor(rand() * 12) + 1).padStart(2, '0')}-${String(Math.floor(rand() * 28) + 1).padStart(2, '0')}` : null,
-        fileSize: docStatus === 'submitted' ? `${(rand() * 4 + 0.5).toFixed(1)} MB` : null,
+        verificationStatus,
+        verifiedBy,
+        notes,
+        dateSubmitted,
+        fileSize,
+        currentVersion: numVersions,
+        versions,
+        comments,
       };
     });
 

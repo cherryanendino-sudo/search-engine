@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import gsap from 'gsap';
-import type { Student } from '../data/students';
+import type { Student, Document as StudentDocument } from '../data/students';
 import { getGradeLevelLabel } from '../data/students';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,11 +23,7 @@ const statusColor = (s: Student['status']) => {
   }
 };
 
-const docStatusColor = (s: string) => {
-  if (s === 'submitted') return '#4ade80';
-  if (s === 'pending') return '#fbbf24';
-  return '#f87171';
-};
+
 
 interface EditableFields {
   firstName: string;
@@ -62,6 +58,14 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
   const [editFields, setEditFields] = useState<EditableFields | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Document management state
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+  const [docComments, setDocComments] = useState<Record<string, string>>({});
+  const [uploadModal, setUploadModal] = useState(false);
+  const [uploadDocType, setUploadDocType] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [docStatuses, setDocStatuses] = useState<Record<string, StudentDocument['verificationStatus']>>({});
+
   const { user } = useAuth();
   const canEdit = user?.role === 'admin' || user?.role === 'registrar';
 
@@ -77,6 +81,11 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
     setEnrollSuccess(false);
     setIsEditing(false);
     setSaveSuccess(false);
+    setExpandedDoc(null);
+    setDocComments({});
+    setUploadModal(false);
+    setUploadSuccess(false);
+    setDocStatuses({});
 
     const tl = gsap.timeline();
     tl.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5, ease: 'power2.out' })
@@ -187,6 +196,59 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
       setEditFields(null);
       setSaveSuccess(false);
     }, 1200);
+  };
+
+  const handleAddComment = (docId: string) => {
+    const text = docComments[docId];
+    if (!text?.trim() || !student || !onStudentUpdate) return;
+    const updated = { ...student };
+    updated.documents = updated.documents.map((d) => {
+      if (d.id === docId) {
+        return {
+          ...d,
+          comments: [...d.comments, {
+            id: `cmt-${Date.now()}`,
+            author: user?.displayName ?? 'Unknown',
+            date: new Date().toISOString().split('T')[0],
+            text: text.trim(),
+          }],
+        };
+      }
+      return d;
+    });
+    onStudentUpdate(updated);
+    setDocComments((prev) => ({ ...prev, [docId]: '' }));
+  };
+
+  const handleUpdateDocStatus = (docId: string, newStatus: StudentDocument['verificationStatus']) => {
+    if (!student || !onStudentUpdate) return;
+    const updated = { ...student };
+    updated.documents = updated.documents.map((d) => {
+      if (d.id === docId) {
+        return {
+          ...d,
+          verificationStatus: newStatus,
+          verifiedBy: newStatus === 'approved' ? (user?.displayName ?? 'Unknown') : d.verifiedBy,
+        };
+      }
+      return d;
+    });
+    onStudentUpdate(updated);
+    setDocStatuses((prev) => ({ ...prev, [docId]: newStatus }));
+  };
+
+  const handleUploadDocument = () => {
+    setUploadSuccess(true);
+    setTimeout(() => { setUploadModal(false); setUploadSuccess(false); setUploadDocType(''); }, 1500);
+  };
+
+  const verificationBadgeColor = (status: StudentDocument['verificationStatus']) => {
+    switch (status) {
+      case 'approved': return '#4ade80';
+      case 'pending': return '#fbbf24';
+      case 'rejected': return '#f87171';
+      default: return 'var(--text-muted)';
+    }
   };
 
   const updateField = (field: keyof EditableFields, value: string) => {
@@ -838,16 +900,36 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
           {/* ========== DOCUMENTS TAB ========== */}
           {activeTab === 'documents' && (
             <div className="max-w-6xl">
-              <div className="tab-anim flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
-                  <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Student Documents</span>
+              {/* Header with Upload button */}
+              <div className="tab-anim flex items-center justify-between mb-2">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Student Documents</span>
+                  </div>
+                  <span className="mono-tag ml-4" style={{ color: 'var(--text-quaternary)' }}>Manage uploaded files and requirements</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="mono-tag text-[#4ade80]">{submittedDocs} submitted</span>
-                  <span className="mono-tag text-[#fbbf24]">{student.documents.filter(d => d.status === 'pending').length} pending</span>
-                  <span className="mono-tag text-[#f87171]">{student.documents.filter(d => d.status === 'missing').length} missing</span>
-                </div>
+                {canEdit && (
+                  <button
+                    onClick={() => { setUploadModal(true); setUploadSuccess(false); }}
+                    className="px-5 py-2.5 border mono-tag transition-all duration-300 flex items-center gap-2"
+                    style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--text-primary)'; e.currentTarget.style.color = 'var(--bg-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                    </svg>
+                    Upload Document
+                  </button>
+                )}
+              </div>
+
+              {/* Status summary */}
+              <div className="tab-anim flex items-center gap-4 mb-6 ml-4">
+                <span className="mono-tag text-[#4ade80]">{submittedDocs} submitted</span>
+                <span className="mono-tag text-[#fbbf24]">{student.documents.filter(d => d.status === 'pending').length} pending</span>
+                <span className="mono-tag text-[#f87171]">{student.documents.filter(d => d.status === 'missing').length} missing</span>
               </div>
 
               {/* Progress bar */}
@@ -862,45 +944,250 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                {student.documents.map((doc, i) => (
-                  <div key={i} className="tab-anim group border transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
-                    <div className="flex items-center justify-between px-5 py-4">
-                      <div className="flex items-center gap-4">
-                        {/* Icon */}
-                        <div className="w-10 h-10 border flex items-center justify-center flex-shrink-0 transition-colors" style={{ borderColor: 'var(--border-primary)' }}>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M9 1H3.5A1.5 1.5 0 002 2.5v11A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V6L9 1z" stroke="var(--text-quaternary)" strokeWidth="1" />
-                            <path d="M9 1v5h5" stroke="var(--text-quaternary)" strokeWidth="1" />
-                          </svg>
-                        </div>
-                        <div>
-                          <span className="text-sm font-light block" style={{ color: 'var(--text-secondary)' }}>{doc.name}</span>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{doc.type.toUpperCase().replace('_', ' ')}</span>
-                            {doc.fileSize && (
-                              <>
-                                <span className="mono-tag" style={{ color: 'var(--text-invisible)' }}>|</span>
-                                <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{doc.fileSize}</span>
-                              </>
+              {/* Document cards */}
+              <div className="space-y-4">
+                {student.documents.map((doc) => {
+                  const isExpanded = expandedDoc === doc.id;
+                  const currentStatus = docStatuses[doc.id] ?? doc.verificationStatus;
+                  const badgeColor = verificationBadgeColor(currentStatus);
+
+                  return (
+                    <div key={doc.id} className="tab-anim border transition-colors" style={{ borderColor: isExpanded ? 'var(--border-tertiary)' : 'var(--border-primary)' }}>
+                      {/* Document header row */}
+                      <div className="flex items-center justify-between px-5 py-4">
+                        <div className="flex items-center gap-4">
+                          {/* Status icon */}
+                          <div className="flex-shrink-0">
+                            {doc.status === 'submitted' ? (
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke={badgeColor} strokeWidth="1.5" />
+                                <path d="M8 12l3 3 5-5" stroke={badgeColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            ) : doc.status === 'pending' ? (
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="#fbbf24" strokeWidth="1.5" />
+                                <path d="M12 8v4l2 2" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            ) : (
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="#f87171" strokeWidth="1.5" />
+                                <path d="M15 9l-6 6M9 9l6 6" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round" />
+                              </svg>
                             )}
                           </div>
+
+                          <div>
+                            <span className="text-sm font-light block" style={{ color: 'var(--text-primary)' }}>{doc.name}</span>
+                            <div className="flex items-center gap-3 mt-1">
+                              {doc.dateSubmitted && (
+                                <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>
+                                  Submitted on {doc.dateSubmitted}
+                                </span>
+                              )}
+                              {doc.currentVersion > 0 && (
+                                <>
+                                  <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>v{doc.currentVersion}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {doc.dateSubmitted && (
-                          <span className="mono-tag hidden sm:inline" style={{ color: 'var(--text-faint)' }}>{doc.dateSubmitted}</span>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: docStatusColor(doc.status) }} />
-                          <span className="mono-tag" style={{ color: docStatusColor(doc.status) }}>
-                            {doc.status}
+
+                        <div className="flex items-center gap-3">
+                          {/* Verification badge */}
+                          <span className="mono-tag px-3 py-1 border rounded-sm" style={{ color: badgeColor, borderColor: badgeColor + '44' }}>
+                            {currentStatus.toUpperCase()}
                           </span>
+
+                          {/* View button */}
+                          {doc.versions.length > 0 && (
+                            <button className="mono-tag px-3 py-1 border transition-colors flex items-center gap-1.5" style={{ borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                              View
+                            </button>
+                          )}
+
+                          {/* New Version button */}
+                          {canEdit && doc.status === 'submitted' && (
+                            <button className="mono-tag px-3 py-1 border transition-colors flex items-center gap-1.5" style={{ borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2" />
+                              </svg>
+                              New Version
+                            </button>
+                          )}
+
+                          {/* Expand/collapse */}
+                          <button
+                            onClick={() => setExpandedDoc(isExpanded ? null : doc.id)}
+                            className="mono-tag px-2 py-1 transition-colors"
+                            style={{ color: 'var(--text-tertiary)' }}
+                          >
+                            {isExpanded ? 'Show less' : 'Show more'}
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className={`inline-block ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
+
+                      {/* Expanded content */}
+                      {isExpanded && (
+                        <div style={{ borderTop: '1px solid var(--border-primary)' }}>
+                          {/* Current Version + Verification + Notes */}
+                          <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                              <span className="mono-tag block mb-2" style={{ color: 'var(--text-quaternary)' }}>Current Version</span>
+                              {doc.versions.length > 0 ? (
+                                <div className="border p-3" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-tertiary)' }}>
+                                  <span className="text-xs font-mono block" style={{ color: 'var(--text-secondary)' }}>
+                                    v{doc.currentVersion} - {doc.versions[doc.versions.length - 1].filename}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs" style={{ color: 'var(--text-faint)' }}>No file uploaded</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="mono-tag block mb-2" style={{ color: 'var(--text-quaternary)' }}>Verification Status</span>
+                              <span className="text-xs font-light" style={{ color: 'var(--text-secondary)' }}>
+                                {doc.verifiedBy ? `Verified by ${doc.verifiedBy}` : 'Not yet verified'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="mono-tag block mb-2" style={{ color: 'var(--text-quaternary)' }}>Notes</span>
+                              <span className="text-xs font-light" style={{ color: 'var(--text-secondary)' }}>
+                                {doc.notes ?? 'No notes'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Counts + Status Update */}
+                          <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border-primary)' }}>
+                            <div className="flex items-center gap-4">
+                              <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>
+                                {doc.versions.length} version{doc.versions.length !== 1 ? 's' : ''}
+                              </span>
+                              <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>
+                                {doc.comments.length} comment{doc.comments.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {canEdit && (
+                              <div className="flex items-center gap-3">
+                                <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Update status:</span>
+                                <select
+                                  value={docStatuses[doc.id] ?? doc.verificationStatus}
+                                  onChange={(e) => handleUpdateDocStatus(doc.id, e.target.value as StudentDocument['verificationStatus'])}
+                                  className="text-xs py-1 px-2 outline-none"
+                                  style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)', fontFamily: "'Space Mono', monospace" }}
+                                >
+                                  <option value="approved">Approved</option>
+                                  <option value="pending">Pending</option>
+                                  <option value="rejected">Rejected</option>
+                                  <option value="unverified">Unverified</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Version History */}
+                          {doc.versions.length > 0 && (
+                            <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border-primary)' }}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-quaternary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <path d="M12 6v6l4 2" />
+                                </svg>
+                                <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Version History</span>
+                              </div>
+                              <div className="space-y-2">
+                                {doc.versions.map((ver) => (
+                                  <div key={ver.version} className="flex items-center justify-between py-2 px-3 border" style={{ borderColor: 'var(--border-primary)' }}>
+                                    <div className="flex items-center gap-3">
+                                      <span className="mono-tag px-2 py-0.5 border" style={{ borderColor: 'var(--border-secondary)', color: 'var(--text-tertiary)' }}>v{ver.version}</span>
+                                      <span className="text-xs" style={{ color: 'var(--text-quaternary)' }}>{ver.dateUploaded}</span>
+                                      <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{ver.filename}</span>
+                                    </div>
+                                    <button className="mono-tag px-3 py-1 border transition-colors flex items-center gap-1.5" style={{ borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                      </svg>
+                                      View
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Comments */}
+                          <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border-primary)' }}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-quaternary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                              </svg>
+                              <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Comments</span>
+                            </div>
+
+                            {doc.comments.length > 0 ? (
+                              <div className="space-y-3 mb-4">
+                                {doc.comments.map((comment) => (
+                                  <div key={comment.id} className="flex gap-3">
+                                    <div className="w-8 h-8 rounded-full border flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--border-secondary)', background: 'var(--bg-tertiary)' }}>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5">
+                                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                      </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{comment.author}</span>
+                                        <span className="mono-tag" style={{ color: 'var(--text-faint)' }}>{comment.date}</span>
+                                      </div>
+                                      <p className="text-xs font-light mt-1" style={{ color: 'var(--text-tertiary)' }}>{comment.text}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs mb-4" style={{ color: 'var(--text-faint)' }}>No comments yet</p>
+                            )}
+
+                            {/* Add comment */}
+                            <div className="flex gap-3">
+                              <input
+                                type="text"
+                                value={docComments[doc.id] ?? ''}
+                                onChange={(e) => setDocComments((prev) => ({ ...prev, [doc.id]: e.target.value }))}
+                                placeholder="Add a comment..."
+                                className="flex-1 px-3 py-2 text-xs outline-none transition-colors"
+                                style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)', fontFamily: "'Space Grotesk', sans-serif" }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(doc.id); }}
+                              />
+                              <button
+                                onClick={() => handleAddComment(doc.id)}
+                                disabled={!docComments[doc.id]?.trim()}
+                                className="px-4 py-2 border mono-tag transition-all duration-300 flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
+                                style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)' }}
+                                onMouseEnter={(e) => { if (!(e.currentTarget as HTMLButtonElement).disabled) { e.currentTarget.style.background = 'var(--text-primary)'; e.currentTarget.style.color = 'var(--bg-primary)'; } }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                                </svg>
+                                Add Comment
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1083,6 +1370,103 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
                   }}
                 >
                   Confirm Enrollment
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {/* ========== UPLOAD DOCUMENT MODAL ========== */}
+      {uploadModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setUploadModal(false)} />
+          <div className="relative border w-full max-w-md p-8" style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            {uploadSuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 border border-[#4ade80] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 13L9 17L19 7" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <p className="text-lg font-light text-[#4ade80] mb-2">Upload Successful</p>
+                <p className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>Document has been uploaded</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1 h-4" style={{ background: 'var(--text-primary)' }} />
+                    <span className="mono-tag" style={{ color: 'var(--text-primary)' }}>Upload Document</span>
+                  </div>
+                  <button onClick={() => setUploadModal(false)} className="w-8 h-8 border flex items-center justify-center transition-colors" style={{ borderColor: 'var(--border-secondary)' }}>
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                      <path d="M1 1L13 13M13 1L1 13" stroke="var(--text-tertiary)" strokeWidth="1.5" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                  <span className="text-sm font-light" style={{ color: 'var(--text-tertiary)' }}>Uploading for: {student.firstName} {student.lastName}</span>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="mono-tag block mb-2">Document Type</label>
+                    <select value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)}
+                      className="w-full px-4 py-3 text-sm font-light outline-none transition-colors"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}>
+                      <option value="">Select document type</option>
+                      <option value="birth_cert">PSA Birth Certificate</option>
+                      <option value="form137">Form 137 (School Records)</option>
+                      <option value="form138">Form 138 (Report Card)</option>
+                      <option value="good_moral">Certificate of Good Moral Character</option>
+                      <option value="photo">2x2 ID Photo</option>
+                      <option value="medical">Medical Certificate</option>
+                      <option value="enrollment_form">Enrollment Form</option>
+                      <option value="transfer">Transfer Credential</option>
+                      <option value="other">Other Document</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mono-tag block mb-2">File</label>
+                    <div className="border-2 border-dashed p-8 text-center transition-colors" style={{ borderColor: 'var(--border-secondary)' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                      </svg>
+                      <p className="text-sm font-light mb-1" style={{ color: 'var(--text-tertiary)' }}>Click to browse or drag and drop</p>
+                      <p className="mono-tag" style={{ color: 'var(--text-faint)' }}>PDF, JPG, PNG up to 10MB</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mono-tag block mb-2">Notes (Optional)</label>
+                    <input type="text" placeholder="Add any notes about this document"
+                      className="w-full px-4 py-3 text-sm font-light outline-none transition-colors"
+                      style={{ background: 'var(--bg-input)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleUploadDocument}
+                  disabled={!uploadDocType}
+                  className="mt-8 w-full py-3 border mono-tag transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ borderColor: 'var(--text-primary)', color: 'var(--text-primary)' }}
+                  onMouseEnter={(e) => {
+                    if (!(e.currentTarget as HTMLButtonElement).disabled) {
+                      e.currentTarget.style.background = 'var(--text-primary)';
+                      e.currentTarget.style.color = 'var(--bg-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                  </svg>
+                  Upload Document
                 </button>
               </>
             )}
