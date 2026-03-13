@@ -67,7 +67,7 @@ export function StudentProfile({ student, onClose, onStudentUpdate }: Props) {
   const [docStatuses, setDocStatuses] = useState<Record<string, StudentDocument['verificationStatus']>>({});
 
   const { user } = useAuth();
-  const canEdit = user?.role === 'admin' || user?.role === 'registrar';
+  const canEdit = user?.roles.includes('registrar') || user?.roles.includes('adviser');
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);

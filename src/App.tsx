@@ -5,19 +5,20 @@ import { faculty as facultyData, type Faculty } from './data/faculty';
 import { StudentProfile } from './components/StudentProfile';
 import { FacultyProfile } from './components/FacultyProfile';
 import { SubjectOfferingsView } from './components/SubjectOfferings';
+import { Dashboard as DashboardView } from './components/Dashboard';
 import { CustomCursor } from './components/CustomCursor';
 import { LoginPage } from './components/LoginPage';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-type ActiveView = 'students' | 'faculty' | 'subjects';
+type ActiveView = 'dashboard' | 'students' | 'faculty' | 'subjects';
 
 const studentStatuses = ['all', 'enrolled', 'not-enrolled', 'graduated', 'transferred'] as const;
 const facultyStatuses = ['all', 'active', 'on-leave', 'resigned'] as const;
 
 function Dashboard() {
-  const [activeView, setActiveView] = useState<ActiveView>('students');
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   // Student state
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -148,6 +149,7 @@ function Dashboard() {
   };
 
   const navItems: { key: ActiveView; label: string }[] = [
+    { key: 'dashboard', label: 'DASHBOARD' },
     { key: 'students', label: 'STUDENTS' },
     { key: 'faculty', label: 'FACULTY' },
     { key: 'subjects', label: 'SUBJECTS' },
@@ -223,6 +225,21 @@ function Dashboard() {
             ))}
           </h1>
         </div>
+
+        {/* ==================== DASHBOARD VIEW ==================== */}
+        {activeView === 'dashboard' && (
+          <>
+            <div ref={subtitleRef} className="mb-12 md:mb-16 flex items-center gap-4">
+              <div className="w-12 h-px" style={{ background: 'var(--border-tertiary)' }} />
+              <span className="mono-tag" style={{ color: 'var(--text-quaternary)' }}>
+                K-12 Student Information System -- Dashboard
+              </span>
+            </div>
+            <div ref={searchBoxRef}><div ref={filtersRef}><div ref={counterRef}>
+              <DashboardView onNavigate={(view) => setActiveView(view)} />
+            </div></div></div>
+          </>
+        )}
 
         {/* ==================== STUDENTS VIEW ==================== */}
         {activeView === 'students' && (

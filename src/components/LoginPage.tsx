@@ -12,7 +12,6 @@ export function LoginPage() {
   const { login } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -35,12 +34,10 @@ export function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    // Simulate a brief delay for realism
     setTimeout(() => {
       const result = login(username, password);
       if (!result.success) {
         setError(result.error ?? 'Login failed');
-        // Shake animation on error
         gsap.fromTo(
           formRef.current,
           { x: -8 },
@@ -52,16 +49,14 @@ export function LoginPage() {
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="noise-bg min-h-screen flex items-center justify-center relative"
-    >
+    <div className="noise-bg min-h-screen flex items-center justify-center relative">
       <div className="grid-lines" />
 
       {/* Theme toggle */}
       <button
         onClick={toggleTheme}
-        className="fixed top-6 right-8 z-50 w-9 h-9 border border-[var(--border-primary)] flex items-center justify-center hover:border-[var(--text-secondary)] transition-all"
+        className="fixed top-6 right-8 z-50 w-9 h-9 border flex items-center justify-center transition-all"
+        style={{ borderColor: 'var(--border-primary)' }}
         title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       >
         {theme === 'dark' ? (
@@ -181,9 +176,12 @@ export function LoginPage() {
             </span>
             <div className="space-y-2">
               {[
-                { user: 'admin', pass: 'admin123', role: 'Full Access' },
+                { user: 'admin', pass: 'admin123', role: 'All Roles' },
                 { user: 'registrar', pass: 'registrar123', role: 'Registrar' },
-                { user: 'viewer', pass: 'viewer123', role: 'View Only' },
+                { user: 'adviser', pass: 'adviser123', role: 'Adviser + Teacher' },
+                { user: 'teacher', pass: 'teacher123', role: 'Subject Teacher' },
+                { user: 'finance', pass: 'finance123', role: 'Finance' },
+                { user: 'registrar_adviser', pass: 'regadv123', role: 'Registrar + Adviser' },
               ].map((cred) => (
                 <div key={cred.user} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
